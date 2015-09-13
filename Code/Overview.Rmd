@@ -1,0 +1,46 @@
+---
+title: "Project Overview"
+author: "Vijayvithal"
+date: "13 September 2015"
+output: html_document
+---
+
+# What is Data Driven Policy?
+
+Policy makers have to base their decisions on a wide variety of factors, some require technical expertise, some require inputs from a diversity of stakeholders.
+e.g. If the question is what is `235446 + 298554` all experts will give the same answer, some might ask what is the number system, and we can safely assign them to a research position and forget all about them.
+
+But if the question is, what crop should be grown in a particular area, or where should the next set of schools be built, each stakeholder will have a different answer. How do we decide which answer is correct? If funding is available for building only 4 schools and 198 corporators are fighting for it, where should the new school be built? Typicaly the answer is 'squeaky wheel gets the grease' here it translates to, that section of stakeholders who lobby the hardest will get the resources.
+
+Is it possible to change the situation? Can we have data supplement the lobbying for resources? Can we change the answer to need based from squeaky wheel?
+
+This repository is an effort to analyse commonly available public datasets and see if we can predict developmental needs by analysing these datasets.
+
+## What datasets will be used for analysis.
+
+The datasets currently available with us are
+
+* Voter's list for Bangalore
+* BBMP Election results for 2010 and 2015
+* BBMP Project's and contractor payment information
+
+The following dataset's can be acquired with some amount of scripting:
+
+* Agricultural transaction data from http://agmarknet.nic.in/
+* Rainfall data from http://www.imd.gov.in/ (the website states that they have "Rainfall Reports containing weekly and seasonally cumulative real-time rainfall statistics for all the districts, states, meteorological subdivisions, four broad regions of India and for the country as a whole, documented since 1993.")
+
+# Questions.
+
+Before seeking answers we need to first frame the questions to which we seek the answers.
+Our questions are
+
+## Municipal planning
+
+* What are the growth area's in a city?
+* Which area's require investment in child care and which areas require geriatric care facilities?
+  + Where should the government deploy pedetricians and gynacologists and where should it deploy Geriatric care specialists?
+* Where should we build schools and colleges?
+
+
+As and when additional data set's are available we will add them here.
+
