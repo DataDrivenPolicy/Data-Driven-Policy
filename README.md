@@ -19,7 +19,7 @@ Data driven policy is an initiative to explore public data analysis to facilitat
 
 # Data collection and analysis.
 
-Mass data collection is a sensitive subject. On one hand it raises question of Big Brother peeping into the private life of citizens. On the other hand when all industries are moving towards data driven decision making,
+Mass data collection is a sensitive subject. On one hand it raises question of Big Brother peeping into the private life of citizens. On the other hand when all industries are moving towards data driven decision making to optimise their spending and revenue, it does not make sense for the government, the biggest spender of them all, to ignore available data for its decision making.
 
 As a part of this project we will look at macro level data sets and use it to arrive at decisions related to improvement of the city.
 
