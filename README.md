@@ -1,4 +1,4 @@
-# municipal-learning
+# Data Driven Policy
 A project to bring data analytics and machine learning to policy making.
 
 * What are the natural limits of a city?
