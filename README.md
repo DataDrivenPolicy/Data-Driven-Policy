@@ -1,5 +1,5 @@
 # municipal-learning
-A project to bring data analytics and machine learning to municipal projects.
+A project to bring data analytics and machine learning to policy making.
 
 * What are the natural limits of a city?
 * Is the city growing, stagnant or deflating?
@@ -14,8 +14,14 @@ A project to bring data analytics and machine learning to municipal projects.
 * What are the future service requirements?
 * By when are they required?
 
+Lack of proper data on which to base the answer would lead to the decision maker deciding on the basis of his gut instinct.
+Data driven policy is an initiative to explore public data analysis to facilitate informed decision making.
+
 # Data collection and analysis.
-Mass data collection is a sensitive subject. On one hand it raises question of Big Brother peeping into the private life of citizens. On the other hand when all industries are moving towards data driven decision making, It is ridiculous for our Neta's and Babu's to make decisions based on gut feel or squeaky wheel.
+
+Mass data collection is a sensitive subject. On one hand it raises question of Big Brother peeping into the private life of citizens. On the other hand when all industries are moving towards data driven decision making,
+
+As a part of this project we will look at macro level data sets and use it to arrive at decisions related to improvement of the city.
 
 This project tries to identify various sources of data, their quality, and the prediction models that can be built using them.
 
