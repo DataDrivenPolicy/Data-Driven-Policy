@@ -24,7 +24,7 @@ In Progress
 * Ananlysis of Bangalore voter demographics.
 * Analysis of BBMP Elections- candidates and results
 
-The reports of these projects can be found at http://rupbs.com/vijayvithal
+The reports of these projects can be found at http://rpubs.com/vijayvithal
 
 The Code for these projects are at https://github.com/jahagirdar/elections
 Planned
