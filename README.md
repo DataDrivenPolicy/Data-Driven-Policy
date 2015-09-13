@@ -19,11 +19,14 @@ Mass data collection is a sensitive subject. On one hand it raises question of B
 
 This project tries to identify various sources of data, their quality, and the prediction models that can be built using them.
 
-# Sub Project
+This is an umbrella project which consist's of the following sub projects
+In Progress
+* Ananlysis of Bangalore voter demographics.
+* Analysis of BBMP Elections- candidates and results
 
+The reports of these projects can be found at http://rupbs.com/vijayvithal
+
+The Code for these projects are at https://github.com/jahagirdar/elections
+Planned
 * Analysis of BBMP Projects
-* Analysis of BBMP Income and expenditure data
-* Analysis of Voter rolls
-* 
-
-
+* Analysis of BBMP Income expenditure statuements.
