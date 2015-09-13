@@ -23,6 +23,8 @@ Mass data collection is a sensitive subject. On one hand it raises question of B
 
 As a part of this project we will look at macro level data sets and use it to arrive at decisions related to improvement of the city.
 
+Also check the wiki page at https://github.com/jahagirdar/Data-Driven-Policy/wiki for topic specific analysis and potential data sources.
+
 This project tries to identify various sources of data, their quality, and the prediction models that can be built using them.
 
 This is an umbrella project which consist's of the following sub projects
