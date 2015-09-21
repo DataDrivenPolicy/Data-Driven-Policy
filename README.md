@@ -14,7 +14,10 @@ A project to bring data analytics and machine learning to policy making.
 * What are the future service requirements?
 * By when are they required?
 
-Lack of proper data on which to base the answer would lead to the decision maker deciding on the basis of his gut instinct.
+# Is this project required?
+
+Lack of proper data on which to base the answer would lead to the decision maker deciding on the basis of his gut instinct. This invariably results in building facilities in those areas personally known to the decision maker, or those areas which agitate for them, while the rest of the domain suffers from neglect.
+
 Data driven policy is an initiative to explore public data analysis to facilitate informed decision making.
 
 As a part of this project we will look at macro level data sets and use it to arrive at decisions related to improvement of the city.
