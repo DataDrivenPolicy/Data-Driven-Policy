@@ -1,0 +1,36 @@
+---
+title: "BBMP Projects"
+author: "Vijayvithal"
+date: "21 September 2015"
+output: html_document
+---
+```{r}
+require(knitr)
+opts_knit$set(root.dir = normalizePath('../'))
+```
+
+```{r}
+options( java.parameters = "-Xmx4g" )
+library(readxl)
+jobs<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="BBMP Job Codes",skip=1)
+bills_IFMS<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="Contractor Bills (source IFMS)",skip=1)
+bills_BBMP<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="Contractor Bills (BBMP Website)",skip=1)
+bills_RTI<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="Contractor Bills (RTI)",skip=1)
+```
+
+```{r}
+x<-data.frame(table(jobs$`Job Code`))
+
+```
+We have `r  nrow(x[x$Freq>1,]) ` duplicate  Job codes in our database.
+
+# How many projects are common in all three systems?
+
+We will take the IFMS table as the base table, To this we will add new rows from  BBMP Table and finally new rows from RTI Table
+
+``` {r}
+#Join Tables by their Job codes.
+bills_BBMP<-rename(bills_BBMP,`Job Code`=`Job No`)
+
+y<-inner_join(bills_IFMS,bills_BBMP,by='Job Code')
+z<-inner_join(bills_IFMS,bills_RTI,by='Job Code')

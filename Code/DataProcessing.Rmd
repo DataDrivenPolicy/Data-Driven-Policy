@@ -1,0 +1,194 @@
+---
+title: "Data Processing"
+author: "Vijayvithal"
+date: "13 September 2015"
+output: html_document
+---
+
+The data set for voters record is obtained from http://smartvote.in. This data is Collected everytime the CEO updates the voter list. Typicaly the data is scrapped via the reports published by the CEO to collect the following parameters.
+
+Each set of data contains records of approximately 70 lakh voters. Loading and analyzing each of the dataset overloads the tool so as a first step we will break down the dataset into managable chunks.
+
+```{r test-perl, engine='perl'}
+use strict;
+use warnings;
+use Archive::Zip;
+my $zip = Archive::Zip->new;
+chdir "..";
+exit(0) if(-d "csvfiles"); # This is a lengthy process, skip it if the script has been run before.
+
+#########################################
+#### Read the AC Number Mapping data
+#########################################
+open (FILE,"<RawData/AC_Name_No_Ward_mapping.txt") or die "unable to open AC-AC number mapping table for reading";
+my %ac;
+while (<FILE>){
+  my ($ac,$no,@others) =split /\t/;
+  $ac=~s/\s/_/g;
+  $ac{$no}=$ac;
+}
+close(FILE);
+mkdir "csvfiles";
+my @files=glob("RawData/sv_data/*.zip");
+my $prevfile="ViJaY";
+foreach my $file(@files){
+  my $outfile;
+  $file=~/.*\/([^\/]*).zip/;
+  my $dirname="csvfiles/".$1;
+  next if(-e $dirname);
+  mkdir $dirname;
+  $zip->read ($file);
+  foreach my $member ($zip->members){
+    next if $member->isDirectory;
+  $member->extractToFileNamed("Archive.csv");
+  open(FILE,"<Archive.csv") or die " Unable to open extracted Archive.csv for reading";
+  while (<FILE>){
+    # Clean the data to remove punctuation marks which mess with the file reader.
+    s/,/./g; # Remove comma's from source file
+    s/^\s*//; # Remove Leading Spaces
+    #s/"//g; # Remove Quotation marks like "
+    #s/'/-/g; # catch single quote marks like D'souza
+    s/\t-\t/\tNA\t/g; # Replace null entries with NA
+    next if (/^\s*$/);
+    my @fields=split("\t");
+    $fields[0]=~/^[A-Za-z]*(...)/i;
+    my $ACno=$1;
+    my$ACname=$ac{$ACno};
+    if($prevfile ne $ACname) {
+      open (OFILE,">$dirname/$ACname.csv") or die "Unable to open file $dirname/$ACname.csv:$1 with $fields[0] fields @fields";
+      $prevfile=$ACname;
+    }
+    print OFILE $_;
+    
+  }
+  close(FILE);
+  }
+}
+# By this point we have a folder called csvfiles which has a folder for each dataset further divided by AC's
+```
+
+As our next step we will analyze each data set and create age specific tables containing the following data.
+
+Part | Age | Gender | Maritial Status | Count
+-----|--|--|--|--
+Part | Age | M/F | Married/Unknown | 0-9
+
+This data will be stored in the "part_age_gender" folder in csv format.
+
+We will also create a year level table summarising at the AC level instead of the part level
+
+```{r testing}
+print ("Testing")
+```
+
+
+```{r function}
+#########################
+## Function to read data for an AC, Clean the data return it.
+#########################
+read_ac<-function (filename) {
+    file_path<-strsplit(filename,"/")[[1]]
+  ac<-read.delim2(filename,header=F,quote="")
+    headers<-read.delim2(paste(c(file_path[1:length(file_path)-1],"format.txt"),sep="/",collapse = '/'))
+    colnames(ac)<-colnames(headers)
+  # Remove incomplete entries
+  ac<-ac[complete.cases(ac),]
+  # Remove all entries showing incorrect Age
+  ac$Age<-as.numeric(ac$Age)
+  ac<-ac[ac$Age>=18 & ac$Age <=110,]
+  return(ac)
+}
+```
+
+```{r parse_data}
+library(dplyr)
+library(tidyr)
+setwd("..")
+if(FALSE){
+ac_table<-data.frame(AC.Part=factor(),Age=numeric(),Gender=factor(),Maritial=factor(),Count=numeric())
+prev_year<-"";
+files<-list.files("csvfiles",recursive=T,full.names = T,pattern = "*.csv$")
+if(!dir.exists("ac_part_age_gender")){
+  dir.create("ac_part_age_gender")
+}
+  for (file in files) {
+    print (file)
+    file_path<-strsplit(file,"/")[[1]]
+    year<-file_path[2]
+    ac_name<-strsplit(file_path[3],".",fixed = T)[[1]][1]
+    #if(file.exists(paste("part_age_gender",year,ac_name,collapse='/',sep="/"))){next}
+    if(!file.exists(file)){
+      print(paste0("File does not exist",file,"\n")) 
+      next
+      }
+    ac<-read_ac(file)
+
+#     if(year!=prev_year & prev_year!=""){
+#       write.csv(ac_table,file=paste("ac_part_age_gender",prev_year,".csv",collapse='/',sep="/"))
+#       prev_year<-year
+#       ac_table<-data.frame(AC=factor(),Gender=factor(),Maritial=factor(),Age=numeric(),count=numeric())
+#     }
+    
+    #####################################
+    ### Part wise stats
+    ####################################
+    
+    ac_d<-tbl_df(ac) %>%
+      group_by(AC.Part,Age,Gender) %>%
+      summarise(Married=sum(Rel=="H"),Unknown=n()-Married) %>%
+      gather(key=Maritial,value= Count, -Age,-AC.Part,-Gender) %>%
+      filter(Count!=0)
+    dir.create(paste("part_age_gender",year,collapse='/',sep="/"),recursive = T)
+    write.csv(ac_d,file=paste("part_age_gender",year,ac_name,collapse='/',sep="/"))
+    
+    #####################################
+    ### AC wise stats
+    ####################################
+
+    ac_d<-tbl_df(ac) %>%
+      group_by(Age,Gender) %>%
+      summarise(Married=sum(Rel=="H"),Unknown=n()-Married) %>%
+      gather(key=Maritial,value= Count, -Age,-Gender) %>%
+      filter(Count!=0)%>%
+      mutate(AC=ac_name, list=year) %>%
+    ac_table<-rbind(ac_table,ac_d)
+  }
+    dir.create(paste("ac_part_age_gender",collapse='/',sep="/"),recursive = T)
+    
+      write.csv(ac_table,"ac_part_age_gender/Combined.csv")
+      }
+```
+```{r}
+setwd("..")
+      #We messedup Yearly table creation in the previous set. let us retry :(
+      files<- list.files("part_age_gender",recursive = T,full.names = T)
+ac_table<-data.frame(AC=factor(),DataSet=factor(),Age=numeric(),Gender=factor(),Maritial=factor(),Count=numeric())
+      for(file in files) {
+            file_path<-strsplit(file,"/")[[1]]
+    year<-file_path[1]
+    ac_name<-file_path[2]
+        
+        ac<-read.csv(file)
+        ac_cons<-tbl_df(ac) %>%
+          group_by(Age,Gender,Maritial) %>%
+          summarise(Count=sum(Count)) %>%
+          mutate(AC=ac_name,DataSet=year)
+        
+       ac_table<- rbind(ac_table,ac_cons)
+      }
+    dir.create(paste("ac_part_age_gender",collapse='/',sep="/"),recursive = T)
+
+      write.csv(ac_table,"ac_part_age_gender/Combined.csv")
+
+      
+      
+```
+
+Let us plot a few gender plots to ensure everything went ok.
+```{r genderPlots}
+library(ggplot2)
+      ggplot(ac_table,aes(x=Age,y=Count))+geom_point()
+      ggplot(ac_table,aes(x=Age,y=Count,color=Gender))+geom_point()
+      ggplot(ac_table,aes(x=Age,y=Count,color=Gender))+geom_point()
+#ggplot(x=)
+```

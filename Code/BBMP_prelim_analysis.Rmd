@@ -1,0 +1,66 @@
+---
+title: "Reporting:BBMP Wide"
+author: "Vijayvithal"
+date: "16 September 2015"
+output: html_document
+---
+
+We will use the data generated in the previous report to plot some stats for Bangalore
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(scales)
+setwd("..")
+ac_table<-     read.csv("ac_part_age_gender/Combined.csv")
+ac_r<-group_by(ac_table,Age,AC) %>%
+  summarise(Count=sum(Count)) %>%
+extract(AC,c("Month","Year"),"([A-Za-z]+)([0-9]+)")%>%
+ mutate( Year=2000+as.numeric(Year),date=1)%>%
+  unite(Date,Year,Month,date,sep="/")%>%
+mutate(Dates=ymd(Date))%>%
+arrange(Dates) %>%
+print()
+for(ac in unique(ac_r$Dates)){
+  #print (unique(ac_r$Dates))
+  y=ac_r[ac_r$Dates==ac,]
+  print(as.Date.POSIXct(ac))
+print(ggplot(y,aes(x=Age,y=Count)) + geom_line() + scale_x_continuous(breaks=pretty_breaks(n=20)) + scale_y_continuous(breaks=pretty_breaks(n=10)) )
+}
+ggplot(ac_r,aes(x=Age,y=Count,color=as.factor(Dates))) +
+  geom_line() +
+  scale_x_continuous(breaks=pretty_breaks(n=20)) +
+  scale_y_continuous(breaks=pretty_breaks(n=10)) 
+
+```
+
+#Observations from the graph above.
+
+* Till 2013 the Voterlist had a peak at the age of 30+. This peak reached a count of 250,000 citizens in the voter list of May 2015.
+* After this, This segment fell down to 175,000 voters. i.e. we suddenly in a span of 5 months lost 75,000 voters in a single age group.
+* This fall was replaced by a rise in the 18 to 25 age group. Whereas previously we hardly had any voters in the 18 years age group. now the 18-25 age group is slowly becoming the dominant age group.
+* Jan 2014 see's Maximum voter registration among the youth. voters among the 18-25 segment are the highest voter age group registered in the voter list. Is this due to the LS elections?
+* 3 months down the line the voters in the 18-21 age group suddenly start disappearing.
+* Overall it looks like after 2013 we have added a lot of youth while removing 10-20,000 voters from each age group.
+
+# Overall population record
+```{r}
+ac_b<-ac_r%>%
+  ungroup()%>%
+  group_by(Dates) %>%
+  summarise(Population=sum(Count)) %>%
+  print
+ggplot(ac_b,aes(x=Dates,y=Population)) +geom_line() +
+  scale_y_continuous(breaks=pretty_breaks(n=10)) 
+```
+
+In 2011 Census gave the folowing data for Bangalore 
+
+* District Population of 96,21,551 of which male and female were 50,22,661 and 45,98,890.
+* City Population of 84,43,675	of whicl male population is 43,91,723 and female population is	40,51,952
+
+It is currently estimated that the city population is 110 Lakhs i.e. approx 30% increase in population.
+
+The voter record does not show a similar population increase A proportional increase in voter count should have resulted in a total voter count of approx 87 Lakh in 2015 as oposed to the current figure of 62 lakh. i.e. 27 lakh voters are missing from the voter list.
+If we account for the errors in the voter list(duplicate entries, dead or migrated voters, bogus voters etc.) then the actual number of citizens who did not get their voters card will go much higher.
