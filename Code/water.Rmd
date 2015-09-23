@@ -1,0 +1,7 @@
+---
+title: "Water: Case study Bangalore"
+author: "Vijayvithal"
+date: "15 September 2015"
+output: html_document
+---
+

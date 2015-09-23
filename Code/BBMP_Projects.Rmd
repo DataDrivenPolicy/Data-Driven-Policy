@@ -12,10 +12,25 @@ opts_knit$set(root.dir = normalizePath('../'))
 ```{r}
 options( java.parameters = "-Xmx4g" )
 library(readxl)
+library(dplyr)
 jobs<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="BBMP Job Codes",skip=1)
+##############################
+########## Read Bills
+##############################
+
+#SL No	Zone	Division	Ward No	Ward Name	P-Code	Job Code	Work Details	Contractor Name	Contractor No	BR No	BR Date	CBR No	CBR Date	Rtgs No	Rtgs Date	Gross	Deduction	Net Total	Gross	Deduction	Net Total
 bills_IFMS<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="Contractor Bills (source IFMS)",skip=1)
+
+
+#SL No	Zone	Division	Ward No	Ward Name 	P-Code	Job No	BR No	BR Date	Year	Name of the Contractor	Name Of the Work	"Cost of the Work (Rs in Lakhs)"	Payment made as on date (Rs in Lakhs)	Pending Bill Amount (Rs in Lakhs)
 bills_BBMP<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="Contractor Bills (BBMP Website)",skip=1)
+
+#Sl no	BR No (invoice number)	Bill-Date (invoice date)	Job Code	Job description	Category	Ward Number	Ward Name	Contractor Name (Vendor)	"Total BR Amount  (Net Order Value) in Rs."
 bills_RTI<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="Contractor Bills (RTI)",skip=1)
+
+str(bills_BBMP)
+str(bills_IFMS)
+str(bills_RTI)
 ```
 
 ```{r}
@@ -24,13 +39,15 @@ x<-data.frame(table(jobs$`Job Code`))
 ```
 We have `r  nrow(x[x$Freq>1,]) ` duplicate  Job codes in our database.
 
-# How many projects are common in all three systems?
+# Merging Projects to IFMS System
 
 We will take the IFMS table as the base table, To this we will add new rows from  BBMP Table and finally new rows from RTI Table
 
 ``` {r}
 #Join Tables by their Job codes.
 bills_BBMP<-rename(bills_BBMP,`Job Code`=`Job No`)
-
-y<-inner_join(bills_IFMS,bills_BBMP,by='Job Code')
-z<-inner_join(bills_IFMS,bills_RTI,by='Job Code')
+BBMP_unique<-anti_join(bills_BBMP,bills_IFMS,by='Job Code')
+bills_IFMS<-full_join(bills_IFMS,BBMP_unique)
+BBMP_unique<-anti_join(bills_RTI,bills_IFMS,by='Job Code')
+bills_IFMS<-full_join(bills_IFMS,BBMP_unique)
+```
