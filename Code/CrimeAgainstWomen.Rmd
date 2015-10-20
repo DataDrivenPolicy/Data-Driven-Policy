@@ -1,0 +1,60 @@
+---
+title: "Crime against Women 2001-12"
+author: "Vijayvithal"
+date: "19 October 2015"
+output: pdf_document
+---
+
+```{r setup ,include=FALSE,message=FALSE}
+
+require(knitr)
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE)
+opts_knit$set(root.dir = normalizePath('../'))
+
+# Libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+# Analysis of National Crime records from 2001 to 2012.
+
+Source: https://data.gov.in/resources/persons-arrested-under-crime-against-women-during-2001-2012/download 
+
+```{r}
+caw<-read.csv("RawData/data.gov.in/pacCAW2001-12.csv")
+library(tidyr)
+caw_tidy<-gather(caw,Year,Count,X2001:X2012)
+caw_total<-caw_tidy%>%filter(grepl("TOTAL",CRIME.HEAD))
+caw_india<-caw_total%>%filter(grepl("STATES",STATE.UT))
+ggplot(caw_india,aes(x=Year,y=Count))+geom_bar(stat="identity",position="dodge") +facet_wrap( ~CRIME.HEAD )
+
+```
+The total crime against women across india is increasing year on year.
+
+## Spread of crime across categories
+Crime by category shows cruelty of husband is being reported more frequently. Also incidents of kidnapping have doubled. Most of the crimes are by a close relative (dowry death, harrassment by husband inlaws etc.)
+```{r}
+caw_india_total<-caw_tidy%>%filter(!grepl("TOTAL",CRIME.HEAD)) %>% filter(!grepl("STATES",STATE.UT))
+ggplot(caw_india_total,aes(x=Year,y=Count))+geom_bar(stat="identity",position="dodge") +facet_wrap( ~CRIME.HEAD )
+```
+
+# Statewise crime statistics
+
+Karnataka has very less crime reporting compared to other states.
+
+```{r}
+caw_total%>%
+  filter(!grepl("TOTAL",STATE.UT)) %>%
+ggplot(aes(x=Year,y=Count))+geom_bar(stat="identity",position="dodge") +facet_wrap( ~STATE.UT )
+```
+
+# Karnataka crime statistics
+
+```{r}
+caw_karnataka<-caw_tidy[grepl ("KARNATAKA",caw_tidy$STATE.UT),]
+caw_karnataka<-caw_karnataka[!grepl ("TOTAL",caw_karnataka$CRIME.HEAD),]
+ggplot(caw_karnataka,aes(x=Year,y=Count))+geom_bar(stat="identity",position="dodge") +facet_wrap( ~CRIME.HEAD )
+
+```
