@@ -1,66 +1,161 @@
 ---
-title: "Reporting:BBMP Wide"
+title: "Understanding Bangalore: An analysis of voters record from 2012 to 2015"
 author: "Vijayvithal"
 date: "16 September 2015"
 output: html_document
 ---
+```{r setup}
 
-We will use the data generated in the previous report to plot some stats for Bangalore
-```{r}
-library(ggplot2)
-library(tidyr)
+require(knitr)
+opts_knit$set(root.dir = normalizePath('../'))
+
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE)
+opts_knit$set(root.dir = normalizePath('../'))
+# Libraries
 library(dplyr)
+library(tidyr)
+library(ggplot2)
 library(lubridate)
 library(scales)
-setwd("..")
-ac_table<-     read.csv("ac_part_age_gender/Combined.csv")
-ac_r<-group_by(ac_table,Age,AC) %>%
-  summarise(Count=sum(Count)) %>%
-extract(AC,c("Month","Year"),"([A-Za-z]+)([0-9]+)")%>%
- mutate( Year=2000+as.numeric(Year),date=1)%>%
-  unite(Date,Year,Month,date,sep="/")%>%
-mutate(Dates=ymd(Date))%>%
-arrange(Dates) %>%
-print()
-for(ac in unique(ac_r$Dates)){
-  #print (unique(ac_r$Dates))
-  y=ac_r[ac_r$Dates==ac,]
-  print(as.Date.POSIXct(ac))
-print(ggplot(y,aes(x=Age,y=Count)) + geom_line() + scale_x_continuous(breaks=pretty_breaks(n=20)) + scale_y_continuous(breaks=pretty_breaks(n=10)) )
-}
-ggplot(ac_r,aes(x=Age,y=Count,color=as.factor(Dates))) +
-  geom_line() +
-  scale_x_continuous(breaks=pretty_breaks(n=20)) +
-  scale_y_continuous(breaks=pretty_breaks(n=10)) 
-
 ```
-
-#Observations from the graph above.
-
-* Till 2013 the Voterlist had a peak at the age of 30+. This peak reached a count of 250,000 citizens in the voter list of May 2015.
-* After this, This segment fell down to 175,000 voters. i.e. we suddenly in a span of 5 months lost 75,000 voters in a single age group.
-* This fall was replaced by a rise in the 18 to 25 age group. Whereas previously we hardly had any voters in the 18 years age group. now the 18-25 age group is slowly becoming the dominant age group.
-* Jan 2014 see's Maximum voter registration among the youth. voters among the 18-25 segment are the highest voter age group registered in the voter list. Is this due to the LS elections?
-* 3 months down the line the voters in the 18-21 age group suddenly start disappearing.
-* Overall it looks like after 2013 we have added a lot of youth while removing 10-20,000 voters from each age group.
-
-# Overall population record
+We will use the data generated in the previous report to plot some stats for Bangalore
 ```{r}
-ac_b<-ac_r%>%
-  ungroup()%>%
-  group_by(Dates) %>%
-  summarise(Population=sum(Count)) %>%
-  print
-ggplot(ac_b,aes(x=Dates,y=Population)) +geom_line() +
-  scale_y_continuous(breaks=pretty_breaks(n=10)) 
-```
+ac_table  <- read.csv("ac_part_age_gender/Combined.csv")
+ac_table_tidy <- ac_table %>%
+  extract(list,c("Month","Year"),"([A-Za-z]+)([0-9]+)")%>%
+  mutate( Year=2000+as.numeric(Year),date=1)%>%
+  unite(Date,Year,Month,date,sep="/")%>%
+  mutate(Dates=ymd(Date))%>%
+  arrange(Dates) %>%
+  select(-c(Date,X))
 
-In 2011 Census gave the folowing data for Bangalore 
+ac_summary<-group_by(ac_table_tidy,Age,Dates) %>%
+  summarise(Count=sum(Count)) %>%
+print()
+```
+# Overall population record
+
+In 2011, Census gave the folowing data for Bangalore 
 
 * District Population of 96,21,551 of which male and female were 50,22,661 and 45,98,890.
 * City Population of 84,43,675	of whicl male population is 43,91,723 and female population is	40,51,952
 
-It is currently estimated that the city population is 110 Lakhs i.e. approx 30% increase in population.
 
-The voter record does not show a similar population increase A proportional increase in voter count should have resulted in a total voter count of approx 87 Lakh in 2015 as oposed to the current figure of 62 lakh. i.e. 27 lakh voters are missing from the voter list.
-If we account for the errors in the voter list(duplicate entries, dead or migrated voters, bogus voters etc.) then the actual number of citizens who did not get their voters card will go much higher.
+* On an average, In India 40% of the population is in the age group of 0-19 years. i.e. Total voting age population in Bangalore should be approx 50 Lakhs.
+* During voter registration drive conducted by Smartvote in various IT companies in 2012 it was found that nearly 50% of the working population was not registered in the voters list.
+* Extrapolating the above data, Approx 10 Lakh people are employed in IT/ITES activities assuming 2 voters per family we have 20 Lakh IT/ITES families of which 10 Lakh are not registered in the voters list.
+* Assuming all non-IT citizens are registered as voters, we should be seeing a voter count of 40 Lakh
+* From the graph below we see that The voters list in 2012 has atleast 26 lakh additional voters (approx 66 lakh +) compared to our estimate.
+* Available data on voters list indicated that in addition to fake voter ID's created by vested interests, these additional voters are either due to duplicate entries or non removal of voters who have migrated our of the area or have passed away.
+* On an average Bangalore's population is growing at the rate of 6+% per annum. and is currently projected to be around 1.1 Crore This should have resulted in a similar rise in voters data to 52 Lakh or  86 Lakhs if we include the fake data.
+* Since the voters list is range bound and for a short duration in 2014 touches our expected value of 52 Lakh, We are not sure about the amount of inaccuracies in the data. 
+
+The rest of the analysis is performed assuming that the inaccuracy is unifirmly spread and is akin to white noise and will cancel itselves out.
+
+```{r}
+ac_population_summary<-ac_summary%>%
+  ungroup()%>%
+  group_by(Dates) %>%
+  summarise(Population=sum(Count))
+lmfit<-lm(Dates ~ Population,data=ac_population_summary)
+ggplot(ac_population_summary,aes(x=Dates,y=Population)) +geom_line() + 
+  scale_y_continuous(breaks=pretty_breaks(n=10)) 
+#c_table%>% ungroup%>% group_by(Dates,AC,Age,Gender)%>%summarise(Mean=mean(Count),sd=sd(Count))%>%
+#  print
+```
+
+#Year wise change in demographic pattern,
+
+```{r}
+ggplot(ac_summary,aes(x=Age,y=Count))+geom_line()+facet_wrap(~Dates) +scale_x_continuous(breaks=pretty_breaks(n=10)) + scale_y_continuous(breaks=pretty_breaks(n=5))
+```
+
+
+* Till 2013 the Voterlist had a peak at the age of 30+. This peak reached a count of 250,000 citizens in the voter list of May 2015.
+* After this, This segment fell down to 175,000 voters. i.e. In a span of 5 months we lost 75,000 voters in a single age group.
+* This fall was replaced by a rise in the 18 to 25 age group. Whereas previously we hardly had any voters in the 18 years age group. now the 18-25 age group is slowly becoming the dominant age group.
+* Jan 2014 see's Maximum voter registration among the youth. Voters among the 18-25 segment are the highest voter age group registered in the voter list. (Is this due to the LS elections?)
+* 3 months down the line the voters in the 18-21 age group suddenly start disappearing.
+* Overall it looks like after 2013 we have added a lot of youth while removing 10-20,000 voters from each age group.
+
+# Age Group analysis
+
+The voters can be classified in the following categories
+
+|Age Range| Category|Note|
+|------|------|
+|0-18|Minor| This record is not there in the original database, this is interpolated as described in the next section.
+|18-22 | Student|Student| 
+|22-27 | Single Worker|Either Searching for Job or at junior position at work.|
+|27 -30 |Newly Married| Married no kids or kids not in school yet|
+|30 -40 | Married | Married With kids in primary,secondary school
+|40-50|Mid-Level| Parents of school kids, mid level position at work|
+|50-60| Senior-Level|Parents of college going kids, Senior level position at work, approaching and planning retirement|
+|60+| Retired|Retired citizens.
+```{r}
+ac_table_tidy<-ac_table_tidy %>%
+  mutate(Age_Category=ifelse(Age>=18 & Age <22,"Student",
+                             ifelse(Age>=22 & Age <27,"Single Worker",
+                                    ifelse(Age >=27 & Age<30, "Newly Married",
+                                           ifelse(Age>=30 & Age<40,"Married",
+                                                  ifelse(Age>=40 & Age<50, "Mid-Level",
+                                                         ifelse(Age>=50 & Age<60, "Senior-Level",
+                                                                ifelse(Age>=60,"Retired",""))))))))
+```
+
+# Interpolating missing data.
+Children age 0-18 are not a part of this database. There are 3 ways we can interpolate this data
+
+1. Use the census data and scale for changes in numbers between census and voter list.
+1. Assume a uniform spread to ensure 60:40 spread of voters and minors.
+1. Interpolate the data using average family size and fertality numbers.
+
+# Census data
+
+```{r census}
+library(readxl)
+census<-read_excel("RawData/census/DDW-2900C-13.xls",skip=7,col_names=FALSE)
+census<-census%>%
+  filter(X3==572)%>%
+  select(X5,X12:X14)
+colnames(census)<-c("Age","Total","Males","Females")
+census<-mutate(census,Age=extract_numeric(Age))
+census<-census[complete.cases(census$Age),]
+ggplot(census,aes(x=Age,y=Total))+geom_point() +scale_x_continuous(breaks=pretty_breaks(n=10)) 
+
+```
+While the absolute numbers in the census data are different this data shows a sharp discontinuity around the age of 15-16 years. Another interesting pattern common to both the census data and the 2012 voters list is the regular spike in age. In case of census data this spike takes place every 5 years and can be an indication of the approximation done by the enumerator...
+* Average of 2 children per family.
+* Mothers Age at first child birth 26
+* Mothers Age at second child birth 29
+* Mothers Age at third child birth 32
+(Note: The average numbers for India are not available online, the estimates for western developed countries are 29-30 for first child birth, using slightly lower numbers here.)
+```{r}
+girl_child_table<-ac_table_tidy %>%
+  filter(Gender=="F")%>%
+  mutate(child1=ifelse(Age>26 & Age<(26+18),Age-26,-1), child2=ifelse(Age>29 & Age<29+18,Age-29,-1)) %>%
+  mutate(child3=ifelse(Age>32+10 & Age<(32+18),Age-32,-1) ) %>%
+  gather(Child,child_age,child1,child2,child3)%>%
+  filter(child_age>=0 & child_age<18) %>% select(-Age,-Gender,-Child) %>%
+  mutate(Count=Count/2,Gender="F",Maritial="Unmarried",Age=child_age,Age_Category="Minor")%>%
+  select(-child_age)
+boy_child_table<-girl_child_table%>%
+  mutate(Gender="M")
+ac_table_tidy<-rbind(ac_table_tidy,girl_child_table)
+ac_table_tidy<-rbind(ac_table_tidy,boy_child_table)
+ac_table_tidy$Age_Category<-as.factor(ac_table_tidy$Age_Category)
+```
+Sanity Check: Are minors 40% of the population? Total population in database= `r sum(ac_table_tidy$Count)`   Minors = `r tapply(ac_table_tidy$Count,ac_table_tidy$Age_Category,sum)[["Minor"]]`  
+Minors Percentage= `r 100 * tapply(ac_table_tidy$Count,ac_table_tidy$Age_Category,sum)[["Minor"]] / sum(ac_table_tidy$Count) ` is far less than the expected 40%  
+
+Replotting the population summary graphics we see a lack of smooth transition between the minor's and the voting population. This may be due to two possible reason.
+
+* Our data, reasoning and analysis is wrong and we need to re-examine and update our assumptions.
+* The population growth in Bangalore in this century is based on young migrant IT workers. Theis migrant population is still young and will not have older kids.
+
+```{r}
+summary_data<-ac_table_tidy%>%ungroup%>%group_by(Age,Dates)%>%summarise(Count=sum(Count))
+ggplot(summary_data,aes(x=Age,y=Count))+geom_point()+facet_wrap(~Dates) +scale_x_continuous(breaks=pretty_breaks(n=10)) + scale_y_continuous(breaks=pretty_breaks(n=5))
+```
+

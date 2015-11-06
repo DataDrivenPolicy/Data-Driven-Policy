@@ -1,0 +1,32 @@
+---
+title: "Crime stat India"
+author: "Vijayvithal"
+date: "20 October 2015"
+output: html_document
+---
+
+```{r setup ,include=FALSE}
+
+require(knitr)
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE)
+opts_knit$set(root.dir = normalizePath('../'))
+
+# Libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+```{r loadNcleanData}
+crime<-read.csv("RawData/data.gov.in/dstrIPC_1.csv")
+crime_tidy<-crime %>%
+  select(STATE.UT:OTHER.IPC.CRIMES) %>%
+  gather(Crime,Count,MURDER:OTHER.IPC.CRIMES)
+crime_state<-crime_tidy %>% filter(grepl("TOTAL",DISTRICT))
+crime_district<-crime_tidy %>% filter(!grepl("TOTAL",DISTRICT))
+crime_Bangalore<-crime_district %>% filter(grepl("BANGALORE C",DISTRICT))
+ggplot(crime_state,aes(x=STATE.UT,y=Count,fill=YEAR))+geom_histogram(stat="identity") +facet_wrap(~Crime)
+ggplot(crime_Bangalore,aes(x=YEAR,y=Count))+geom_histogram(stat="identity") +facet_wrap(~Crime)
+
+```

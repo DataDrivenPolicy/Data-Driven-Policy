@@ -1,0 +1,36 @@
+---
+title: "MP Salary"
+author: "Vijayvithal"
+date: "30 September 2015"
+output: html_document
+---
+
+```{r setup ,include=FALSE}
+
+require(knitr)
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE)
+opts_knit$set(root.dir = normalizePath('../'))
+
+# Libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+The press release for "formation of the committee on MP Salary" quotes certain data to imply that our MP's are under paid compared to their counter part's in the world.
+While they claim to have survyed 37 countries around the world, the data presented by PRS contains only the top  "developed countries" and looks like this.
+```{r}
+sal<-read.csv("RawData/MP Salary.csv") %>%
+  mutate(Citizen_Income=extract_numeric(PPP),MP_Income=Annual.Dollor,MP_Citizen_Ratio=X)
+ggplot(sal,aes(x=Country,y=MP_Income)) +geom_bar(stat="identity")
+```
+While this figure makes our indian MP cut a poor figure in front of his global counterparts, The picture is not accurate, Let us also plot the average Salary of the citizen along with the MP.
+```{r}
+sal%>%gather(Income,Amount,MP_Income,Citizen_Income)%>% ggplot(aes(x=Country,y=Amount,fill=Income)) +geom_bar(stat="identity",position="dodge")
+```
+
+```{r}
+
+  ggplot(sal,aes(x=Country,y=MP_Citizen_Ratio)) +geom_bar(stat="identity")
+
+```

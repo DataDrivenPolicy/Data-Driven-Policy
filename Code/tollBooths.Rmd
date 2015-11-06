@@ -1,0 +1,254 @@
+---
+title: "Toll Analysis"
+author: "Vijayvithal"
+date: "3 November 2015"
+output: html_document
+---
+
+```{r setup ,include=FALSE}
+
+require(knitr)
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE)
+opts_knit$set(root.dir = normalizePath('../'))
+options(digits=4,scipen = 9)
+
+# Libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(RCurl)
+library(XML)
+library(xml2)
+library(lubridate)
+library(xtable)
+if(file.exists("RawData/toll.tgz")) {
+untar("RawData/toll.tgz",compressed="gzip",exdir="RawData/tolldata")
+}
+lakh<-100000
+crore<-10000000
+```
+
+```{r functions,cache=T}
+read_fees<-function(filename,index,booth_name,booth_index=1){
+   fees_df <-
+      readHTMLTable(
+        filename,header = T,which = index,as.data.frame = T
+      ) 
+   
+    if(!is.null(fees_df)) {
+     if (dim(fees_df)[2] == 4) {
+    fees_df <-
+      mutate(fees_df,"Commercial Vehicle Registered within the district of plaza " =
+               NA)
+  }
+      fees_df<-mutate(fees_df,tollbooth = booth_name,route=booth_index)
+    }
+   return(fees_df)
+}
+
+##################################
+#Initialize Structures
+##################################
+
+# Fees to be paid at booth.
+fees<-data.frame("Type of vehicle"=factor(),
+                 "Single Journey"=numeric(),
+                 
+                 "Return Journey"=numeric(),
+                 "Monthly Pass"=numeric(),
+                 "Commercial Vehicle Registered within the district of plaza "=numeric(),
+                 tollbooth=character())
+
+
+# Cost of road construction
+cost<-data.frame();
+
+# Facilities on Road
+facilities<-data.frame();
+
+# Booth location and other metadata.
+booth<-data.frame();
+
+
+for (filename in list.files("RawData/tolldata/data/",full.names = T,pattern =
+                            "Toll")) {
+  #print (filename)
+  x <- read_html(filename)
+  
+  # XPATH PArsing to get unstructured data.
+  
+  booth_name <- xml_text(xml_find_all(x,"//lable"))
+  concession <-
+    xml_text(xml_find_all(x,'//*[@id="Messages"]/div/div[2]/div[1]/ul/li'))
+  concession <- ifelse(length(concession) != 0,concession,NA)
+  fee_dates <- xml_text(xml_find_all(x,'//*[@id="Messages"]/div/p[2]'))
+  location <- xml_text(xml_find_one(x,'//*[@id="Messages"]/div/p[1]'))
+  
+  fees_df<-read_fees(filename,1,booth_name,1)
+  fees <- rbind(fees,fees_df)
+  
+  cost_df <-
+    readHTMLTable(
+      filename,header = F,which = 2,as.data.frame = T
+    ) %>%
+    mutate(tollbooth = booth_name)
+  cost <- rbind(cost,cost_df)
+# Some booths have multiple destination based fees Capturing all the fee information
+  if (length(readHTMLTable(filename)) == 7) {
+  fees_df<-read_fees(filename,3,booth_name,2)
+  if(!is.null(fees_df)){
+    fees <- rbind(fees,fees_df)
+  }
+    facilities_df <-
+      readHTMLTable(
+        filename,header = F,which = 4,as.data.frame = T
+      ) %>% mutate(tollbooth = booth_name)
+    
+  }else if (length(readHTMLTable(filename)) == 8) {
+  fees_df<-read_fees(filename,3,booth_name,2)
+  if(!is.null(fees_df)){
+    fees <- rbind(fees,fees_df)
+  }
+  fees_df<-read_fees(filename,4,booth_name,3)
+  if(!is.null(fees_df)){
+    fees <- rbind(fees,fees_df)
+    }
+    facilities_df <-
+      readHTMLTable(
+        filename,header = F,which = 5,as.data.frame = T
+      ) %>% mutate(tollbooth = booth_name)
+  } else{
+    facilities_df <-
+      readHTMLTable(
+        filename,header = F,which = 3,as.data.frame = T
+      ) %>% mutate(tollbooth = booth_name)
+    
+  }
+  booth_df <-
+    data.frame(
+      tollbooth = booth_name,concession = concession,fee_dates = fee_dates,location =
+        location,check.rows = F
+    )
+  
+  facilities <- rbind(facilities,facilities_df)
+  booth <- rbind(booth,booth_df)
+  
+}
+```
+
+```{r TidyData}
+booth_tidy<-booth%>%
+  separate(fee_dates,c("Effective.Date","Revision.Due.Date"),sep="/") %>%
+mutate(Effective.Date=dmy(Effective.Date),
+       Revision.Due.Date=dmy(Revision.Due.Date))%>%
+  separate(location,c("location","Road.Length"),sep="Tollable Length :")%>%
+  separate(location,c("location","Stretch"),sep="Stretch :")%>%
+  separate(Road.Length,c("Min.Road.Length","Max.Road.Length"),sep="to|/|&|[(]") %>%
+  mutate(Min.Road.Length=extract_numeric(Min.Road.Length))
+
+fees_tidy<-fees[complete.cases(fees$`Type of vehicle`),] %>%
+  rename(Type.of.vehicle=`Type of vehicle`,
+         Single.Journey=`Single Journey`,
+         Return.Journey=`Return Journey`,
+         Monthly.Pass=`Monthly Pass`,
+         Local.Commercial.Vehicle=`Commercial Vehicle Registered within the district of plaza `
+         )%>%
+  mutate(Single.Journey=extract_numeric(Single.Journey),
+         Return.Journey=extract_numeric(Return.Journey),
+         Monthly.Pass=extract_numeric(Monthly.Pass),
+         Local.Commercial.Vehicle=extract_numeric(Local.Commercial.Vehicle))
+  
+cost_tidy<-cost%>%spread(V1,V2)%>%
+  separate(`Target Traffic (PCU/day)`,c("Target.Traffic","Target.Date"),sep=" As on :")%>%
+  separate(`Traffic (PCU/day)`,c("Actual.Traffic","Actual.Date"),sep="As on :")%>%
+  separate(`Date of fee notification`,c("Fee.Notification.Date","Fee.Notification.No"),sep="[(]") %>%
+  separate(`Commulative Toll Revenue (in Rs. Cr.)`,c("Cumulative.Revenue","Cumulative.Date"),sep="As on :")%>%
+  mutate(Cumulative.Revenue.Discounted=grepl("With Discounting",Cumulative.Revenue))
+
+##################################################
+cost_tidy<-cost_tidy%>%
+  mutate(`Capital Cost of Project (in Rs. Cr.)`=crore*extract_numeric(`Capital Cost of Project (in Rs. Cr.)`),
+         `Commercial Operation Date`=dmy(`Commercial Operation Date`),
+         Cumulative.Date=dmy(Cumulative.Date),
+         Fee.Notification.Date=dmy(Fee.Notification.Date),
+         `Design Capacity (PCU)`=extract_numeric(`Design Capacity (PCU)`),
+         Target.Traffic=extract_numeric(Target.Traffic),
+         Target.Date=dmy(Target.Date),
+         Actual.Traffic=extract_numeric(Actual.Traffic),
+         Actual.Date=dmy(Actual.Date)) %>%
+           rename(
+             Capital.cost=`Capital Cost of Project (in Rs. Cr.)`,
+             Commercial.Operation.Date=`Commercial Operation Date`,
+             Design.Capacity=`Design Capacity (PCU)`,
+             Incharge=`Name / Contact Details of Incharge`,
+             Contractor=`Name of Concessionaire / OMT Contractor`
+           
+  )%>%
+  mutate(
+    Cumulative.Revenue=crore*extract_numeric(Cumulative.Revenue)
+  )
+         
+
+
+joined<-left_join(fees_tidy,booth_tidy,by="tollbooth")
+joined<-left_join(joined,cost_tidy)
+cars<-filter(joined,grepl("Car",Type.of.vehicle))
+```
+
+```{r SummaryReport}
+cuml_rev<-cost_tidy$Cumulative.Revenue
+earning2date<-sum(cuml_rev[complete.cases(cuml_rev)])
+
+n<-top_n(cost_tidy,1,desc(Commercial.Operation.Date))
+earliest.operation<-n$Commercial.Operation.Date
+earliest.revenue<- n$Cumulative.Revenue
+earliest.toll<-n$tollbooth
+earliest.capital=n$Capital.cost
+
+m<-top_n(cost_tidy,1,desc(Actual.Traffic))
+recovery_period<-cars%>%
+  select(tollbooth,Single.Journey,Actual.Traffic,Capital.cost)
+recovery_period<-recovery_period[complete.cases(recovery_period),]%>%
+  mutate(recovery=Capital.cost/(365*Actual.Traffic*Single.Journey))
+ggplot(recovery_period,aes(recovery))+geom_histogram(binwidth=5)+coord_cartesian(xlim=c(0,100))
+
+
+x<-select(cars,Single.Journey ,Actual.Traffic)
+x<-x[complete.cases(x),]
+```
+
+# Introduction
+
+In India, on most of the highways we see toll booth's spaced at a distance of approximate an hours drive time or less. The data related to these toll booths
+
+* `r nrow(booth_tidy)` Toll locations across India.
+* `r sum(cost_tidy$Capital.cost,na.rm=T)/(lakh * crore)` Lakh Crore was spent on the toll roads bridges etc.
+* `r round(earning2date/(crore * lakh))` lakh Crores was cumulatively earned from all toll booths since they were constructed.
+* `r sum(x$Actual.Traffic)` Vehicles use these toll booths daily.
+* `r 365*sum(x$Actual.Traffic*x$Single.Journey)/(lakh*crore)` Lakh Crore Is the total amount that should be earned this year based on Actual average daily traffic and min fees(for Car)
+* `r sum(cost_tidy$Cumulative.Revenue.Discounted)` Booth Have some revenue discounting scheme.
+* `r earliest.toll` is the Earliest toll booth which commenced operation in `r  earliest.operation` and is still collecting revenue. It has collected a revenue of `r earliest.revenue/(lakh*crore)` lakh Crores for a capital investment of  `r earliest.capital/crore` Crore
+* The least busiest toll booth is `r m$tollbooth` with `r m$Actual.Traffic` vehicles per day. costing `r m$Capital.cost`
+
+```{r plotGraphs}
+ggplot(cost_tidy,aes(Capital.cost))+geom_histogram()+xlab("Capital cost of project")+ylab("Number of Booths")
+ggplot(cost_tidy,aes(Commercial.Operation.Date))+geom_histogram()+xlab("Start of Commercial Operation") +ylab("Number of Booths")
+ggplot(cost_tidy,aes(Actual.Traffic))+geom_histogram(binwidth=5000)+coord_cartesian(xlim=c(0,100000))+ylab("Number of Booths") +xlab("Average Daily Traffic")
+```
+
+```{r}
+cpkm<-left_join(cost_tidy,booth_tidy,by="tollbooth")%>% mutate(cost.per.km=Capital.cost/Min.Road.Length)
+ggplot(cpkm,aes(cost.per.km))+geom_histogram()
+```
+we have an outlier where the cost/km is over 250 Crores this corresponds to 
+```{r results="asis"}
+cpkm<-cpkm[!is.infinite(cpkm$cost.per.km),]
+print(xtable(select(top_n(cpkm,1,cost.per.km),tollbooth,cost.per.km,Min.Road.Length,location,Actual.Traffic,Capital.cost)),type="html")
+```
+
+At the current Average traffic and assuming all vehicles are cars(lowest fees) Toll booths should recover their investment within
+
+```{r results="asis"}
+print(xtable(recovery_period%>%mutate(Capital.cost=Capital.cost/crore)%>%rename(Capital.cost.in.Crores=Capital.cost)%>%arrange((recovery))),type="html")
+```

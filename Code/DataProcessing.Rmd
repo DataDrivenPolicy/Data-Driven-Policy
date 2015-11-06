@@ -4,6 +4,11 @@ author: "Vijayvithal"
 date: "13 September 2015"
 output: html_document
 ---
+```{r setup}
+
+require(knitr)
+opts_knit$set(root.dir = normalizePath('../'))
+```
 
 The data set for voters record is obtained from http://smartvote.in. This data is Collected everytime the CEO updates the voter list. Typicaly the data is scrapped via the reports published by the CEO to collect the following parameters.
 
@@ -14,7 +19,7 @@ use strict;
 use warnings;
 use Archive::Zip;
 my $zip = Archive::Zip->new;
-chdir "..";
+#chdir "..";
 exit(0) if(-d "csvfiles"); # This is a lengthy process, skip it if the script has been run before.
 
 #########################################
@@ -103,14 +108,13 @@ read_ac<-function (filename) {
 ```{r parse_data}
 library(dplyr)
 library(tidyr)
-setwd("..")
-if(FALSE){
-ac_table<-data.frame(AC.Part=factor(),Age=numeric(),Gender=factor(),Maritial=factor(),Count=numeric())
+ ac_table<-data.frame(AC=character(),Gender=factor(),Maritial=factor(),Age=numeric(),count=numeric(),list=character())
 prev_year<-"";
 files<-list.files("csvfiles",recursive=T,full.names = T,pattern = "*.csv$")
 if(!dir.exists("ac_part_age_gender")){
   dir.create("ac_part_age_gender")
 }
+print(list.files())
   for (file in files) {
     print (file)
     file_path<-strsplit(file,"/")[[1]]
@@ -126,7 +130,7 @@ if(!dir.exists("ac_part_age_gender")){
 #     if(year!=prev_year & prev_year!=""){
 #       write.csv(ac_table,file=paste("ac_part_age_gender",prev_year,".csv",collapse='/',sep="/"))
 #       prev_year<-year
-#       ac_table<-data.frame(AC=factor(),Gender=factor(),Maritial=factor(),Age=numeric(),count=numeric())
+#       ac_table<-data.frame(AC=character(),Gender=factor(),Maritial=factor(),Age=numeric(),count=numeric(),list=character())
 #     }
     
     #####################################
@@ -150,17 +154,16 @@ if(!dir.exists("ac_part_age_gender")){
       summarise(Married=sum(Rel=="H"),Unknown=n()-Married) %>%
       gather(key=Maritial,value= Count, -Age,-Gender) %>%
       filter(Count!=0)%>%
-      mutate(AC=ac_name, list=year) %>%
+      mutate(AC=ac_name, list=year) 
     ac_table<-rbind(ac_table,ac_d)
   }
     dir.create(paste("ac_part_age_gender",collapse='/',sep="/"),recursive = T)
     
       write.csv(ac_table,"ac_part_age_gender/Combined.csv")
-      }
 ```
 ```{r}
-setwd("..")
       #We messedup Yearly table creation in the previous set. let us retry :(
+if(FALSE){
       files<- list.files("part_age_gender",recursive = T,full.names = T)
 ac_table<-data.frame(AC=factor(),DataSet=factor(),Age=numeric(),Gender=factor(),Maritial=factor(),Count=numeric())
       for(file in files) {
@@ -180,12 +183,13 @@ ac_table<-data.frame(AC=factor(),DataSet=factor(),Age=numeric(),Gender=factor(),
 
       write.csv(ac_table,"ac_part_age_gender/Combined.csv")
 
-      
+}
       
 ```
 
 Let us plot a few gender plots to ensure everything went ok.
 ```{r genderPlots}
+      ac_table<-read.csv("ac_part_age_gender/Combined.csv")
 library(ggplot2)
       ggplot(ac_table,aes(x=Age,y=Count))+geom_point()
       ggplot(ac_table,aes(x=Age,y=Count,color=Gender))+geom_point()

@@ -2,7 +2,7 @@
 title: "Crime against Women 2001-12"
 author: "Vijayvithal"
 date: "19 October 2015"
-output: pdf_document
+output: html_document
 ---
 
 ```{r setup ,include=FALSE,message=FALSE}
@@ -21,6 +21,26 @@ library(ggplot2)
 # Analysis of National Crime records from 2001 to 2012.
 
 Source: https://data.gov.in/resources/persons-arrested-under-crime-against-women-during-2001-2012/download 
+
+To understand the defination of these crimes please refer to https://www.childlineindia.org.in/CP-CR-Downloads/Indian%20penal%20code%201860.pdf
+
+e.g.
+
+*354. Assault or criminal force to woman with intent to outrage her modesty*
+—
+
+Whoever assaults or uses criminal force to any woman, intending to outrage or
+knowing it to be likely that he will thereby outrage her modesty, shall be punished
+with imprisonment of either description for a term which may extend to two years,
+or with fine, or with both.
+
+*509. Word, gesture or act intended to insult the modesty of a woman —*
+
+Whoever, intending to insult the modesty of any woman, utters any word, makes
+any sound or gesture, or exhibits any object, intending that such word or sound
+shall be heard, or that such gesture or object shall be seen, by such woman, or
+intrudes upon the privacy of such woman, shall be punished with simple
+imprisonment for a term which may extend to one year, or with fine, or with both. 
 
 ```{r}
 caw<-read.csv("RawData/data.gov.in/pacCAW2001-12.csv")
@@ -57,4 +77,31 @@ caw_karnataka<-caw_tidy[grepl ("KARNATAKA",caw_tidy$STATE.UT),]
 caw_karnataka<-caw_karnataka[!grepl ("TOTAL",caw_karnataka$CRIME.HEAD),]
 ggplot(caw_karnataka,aes(x=Year,y=Count))+geom_bar(stat="identity",position="dodge") +facet_wrap( ~CRIME.HEAD )
 
+```
+
+# Analysis of district wise data.
+
+```{r}
+caw<-read.csv("RawData/data.gov.in/dstrCAW_1.csv")
+library(tidyr)
+caw_tidy  <-gather(caw,Crime,Count,Rape:Importation.of.Girls)
+caw_tidy <-caw_tidy%>%filter(!grepl("TOTAL",DISTRICT))
+caw_karnataka <-caw_tidy%>%filter(grepl("KARNATAKA",STATE.UT))
+ggplot(caw_karnataka,aes(x=Year,y=Count))+geom_bar(stat="identity",position="dodge") +facet_wrap( ~DISTRICT )
+
+caw_Bangalore <-caw_karnataka%>%filter(grepl("BANGALORE C",DISTRICT))
+ggplot(caw_Bangalore,aes(x=Year,y=Count))+geom_bar(stat="identity",position="dodge") +facet_wrap( ~Crime )
+```
+
+# What does the data say?
+* Most of the crime registered are for domestic abuse.
+* Over the past one decade we have not been able to make any impact on dowry death.
+* A Domestic abuse case is normally a pre-cursor to a civil case (e.g. divorce proceedings). Is there a corelation between a disproportionate amount of domestic abuse case and civic cases? Shouldnt we be seeing more of eve-teasing cases("INSULT TO MODEST")
+* Relative to national average, Karnataka had a higher number of cases under "immoral traffic act" which has decreased in recent years.
+* The district wise dataset does not capture all the fields that are captured in the state wise dataset
+* Almost every female has a story of eve-teasing(Insult to modesty) or groping(Assult on women with intent to ...) Why is it not being reported? What can be done to increase the legitimate reporting of such crimes?
+
+# Prison Data
+```{r}
+prison<-read.csv("RawData/data.gov.in/Educational_standard_of_inmates.csv")
 ```

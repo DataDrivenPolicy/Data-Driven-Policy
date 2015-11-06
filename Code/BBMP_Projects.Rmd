@@ -4,50 +4,180 @@ author: "Vijayvithal"
 date: "21 September 2015"
 output: html_document
 ---
-```{r}
+```{r global_options, include=FALSE}
 require(knitr)
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE)
 opts_knit$set(root.dir = normalizePath('../'))
 ```
 
+
 ```{r}
-options( java.parameters = "-Xmx4g" )
-library(readxl)
+library(jsonlite)
+library(tidyr)
+library(ggplot2)
 library(dplyr)
-jobs<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="BBMP Job Codes",skip=1)
+jobs<-fromJSON("jobs.json")
 ##############################
 ########## Read Bills
 ##############################
 
 #SL No	Zone	Division	Ward No	Ward Name	P-Code	Job Code	Work Details	Contractor Name	Contractor No	BR No	BR Date	CBR No	CBR Date	Rtgs No	Rtgs Date	Gross	Deduction	Net Total	Gross	Deduction	Net Total
-bills_IFMS<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="Contractor Bills (source IFMS)",skip=1)
+bills_IFMS<-fromJSON("bills_IFMS.json")
 
 
 #SL No	Zone	Division	Ward No	Ward Name 	P-Code	Job No	BR No	BR Date	Year	Name of the Contractor	Name Of the Work	"Cost of the Work (Rs in Lakhs)"	Payment made as on date (Rs in Lakhs)	Pending Bill Amount (Rs in Lakhs)
-bills_BBMP<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="Contractor Bills (BBMP Website)",skip=1)
+bills_BBMP<-fromJSON("bills_bbmp.json")
 
 #Sl no	BR No (invoice number)	Bill-Date (invoice date)	Job Code	Job description	Category	Ward Number	Ward Name	Contractor Name (Vendor)	"Total BR Amount  (Net Order Value) in Rs."
-bills_RTI<-read_excel("RawData/Janagraha/Open Works Consolidated.xlsx",sheet="Contractor Bills (RTI)",skip=1)
-
-str(bills_BBMP)
-str(bills_IFMS)
-str(bills_RTI)
+bills_RTI<-fromJSON("bills_rti.json")
 ```
-
+Our data is split across 4 different tables.
+The Job Table contains the following structure
 ```{r}
-x<-data.frame(table(jobs$`Job Code`))
-
+str(tbl_df(jobs))
 ```
-We have `r  nrow(x[x$Freq>1,]) ` duplicate  Job codes in our database.
+There are 3 bills table, We have processed then to have a common format but each table has different data sets resulting in holes for some fields.
+```{r}
+str(tbl_df(bills_BBMP))
+str(tbl_df(bills_IFMS))
+str(tbl_df(bills_RTI))
+```
 
-# Merging Projects to IFMS System
+# What are the questions that we can ask about BBMP Projects?
 
-We will take the IFMS table as the base table, To this we will add new rows from  BBMP Table and finally new rows from RTI Table
+* What are the projects across each ward?
+* Are the projects as per the ward needs? Or is the available funding equally distributed across each ward?
+* How many of each project actually gets funded?
+* How many of funded projects are completed?
+* What is the duration between project proposal and project completion?
+* How many contractors are affiliated to BBMP?
+* Are contractors specializing in specific department and work? Or do they take up projects across the spectrum?
+* What is the Earning per contractor?
+* What is the average delay in getting the payment for each contractor?
+
+# Can we answer the Questions?
+No, It is not possible to answer the questions accurately as the data is not collected in a unified manner.
+
+BBMP has different systems for various tasks and these are not interlinked. Different Agencies have tried to stitch the financial details with varying amount of success, each such attempt has resulted in small overlapping data islands.
+
+It will be time comsuming to manually consolidate the data related to 30,000+ projects and their multiple payments. We will try our best to consolidate this data in an algorithmatic manner, By doing so we run the risk that any errors in data capture, representation or merging will impact the results.
+```{r}
+x<-data.frame(table(jobs$Job_Code))
+all_bills<-full_join(full_join(bills_BBMP,bills_IFMS,by="Job_Code"),bills_RTI,by="Job_Code")
+anti_code<-anti_join(full_join(bills_BBMP,bills_IFMS,by="Job_Code"),jobs,by="Job_Code")
+```
+
+# Basic Checks about out data sets.
+
+Before we start answering our questions let us check our dataset.
+
+* We have a total of `r nrow(jobs)` Job's entered in the system
+* We have `r  nrow(x[x$Freq>1,]) ` duplicate  Job codes in our database.
+* `r nrow(bills_BBMP)` Bills were extracted from the BBMP website.
+* `r nrow (bills_IFMS)` Bills were extracted from the IFMS system
+* `r nrow(bills_RTI)` Bill details were obtained through RTI.
+
+## Bill - Project Mismatch.
+
+The mismatch could be either due to data entry errors(typo's) or could be due to missing bills/project codes.
+
+* `r nrow (anti_join(bills_BBMP,jobs,by="Job_Code"))` Bills in BBMP table are not found in the Job's Database.
+* `r nrow (anti_join(bills_IFMS,jobs,by="Job_Code"))` Bills in IFMS table are not found in the Job's Database.
+* `r nrow (anti_join(bills_RTI,jobs,by="Job_Code"))` Bills in RTI table are not found in the Job's Database.
+* `r nrow (anti_join(jobs,all_bills,by="Job_Code"))` Jobs do not have corresponding bills.
+
+## how many Projects got funded?
+Let us try to explore the Job code in the project proposals and map them to the Job code in the Payment systems.
+We find that `r length(unique(jobs$Job_Code))` Projects were proposed and `r length(unique(all_bills$Job_Code))` Projects were billed for.
+ `r  nrow(anti_join(jobs,all_bills,by="Job_Code"))` projects were billed for but are not in the proposal list.
+
+
 
 ``` {r}
-#Join Tables by their Job codes.
-bills_BBMP<-rename(bills_BBMP,`Job Code`=`Job No`)
-BBMP_unique<-anti_join(bills_BBMP,bills_IFMS,by='Job Code')
-bills_IFMS<-full_join(bills_IFMS,BBMP_unique)
-BBMP_unique<-anti_join(bills_RTI,bills_IFMS,by='Job Code')
-bills_IFMS<-full_join(bills_IFMS,BBMP_unique)
+# #Join Tables by their Job codes.
+# bills_BBMP<-rename(bills_BBMP,`Job Code`=`Job No`)
+# BBMP_unique<-anti_join(bills_BBMP,bills_IFMS,by='Job Code')
+# bills_IFMS<-full_join(bills_IFMS,BBMP_unique)
+# BBMP_unique<-anti_join(bills_RTI,bills_IFMS,by='Job Code')
+# bills_IFMS<-full_join(bills_IFMS,BBMP_unique)
 ```
+
+## What are the top projects proposed?
+```{r}
+jobs%>% 
+  filter( Ward_Name !="City Level") %>%
+  group_by(Budget_Code)%>%
+  summarise(Jobs=n()) %>%
+    arrange(desc(Jobs))%>%
+  print()
+```
+## Where did BBMP spend most of its money?
+```{r}
+spending<-bills_IFMS%>%
+  group_by(P_Code)%>%
+summarise(Amount=sum(extract_numeric(Gross)),Projects_Count=n(), Percentage=100*n()/nrow(bills_IFMS)) %>%
+  arrange(desc(Amount))
+head(spending,20)
+```
+Looking at the IFMS data set we find,
+
+* The largest amount was spent on projects without Project code!
+* 70 % of the amount goes in the top two project code. the rest form the long tail
+```{r}
+ggplot(spending,aes(x=P_Code,y=Amount)) + geom_bar(stat="identity")
+pie(spending$Amount,labels=spending$P_Code)
+```
+
+Checking the same with the RTI Data Set gives us the following
+```{r}
+spending<-bills_RTI%>%
+  group_by(Category)%>%
+summarise(Amount=sum(extract_numeric(Cost_of_the_work)),Projects_Count=n(), Percentage=100*n()/nrow(bills_RTI)) %>%
+  arrange(desc(Amount)) 
+head(spending,20)
+spending<-spending[complete.cases(spending),]
+pie(spending$Amount,labels=spending$Category)
+```
+
+
+# Now Let us Try to answer our original questions
+## What are the projects across each ward?
+```{r}
+jobs%>%
+  group_by(Ward_Name,Budget_Code,Budget_Head) %>%
+  summarise(Jobs= n()) %>%
+  ungroup ()%>%
+  arrange(desc(Jobs))%>%
+  group_by(Budget_Head)%>%
+  filter( Ward_Name !="City Level") %>%
+  print();
+
+  #ggplot(aes(x=Ward_No,size=Jobs,y=Budget_Code)) +geom_point()
+  
+```
+## Are the projects as per the ward needs? Or is the available funding equally distributed across each ward?
+There are ~90 different P-Codes for which bill payments were made. Examaning the number of wards over which the P-Code were alloted will give us a rough idea of the spread of projects, Further refining this data on AC/PC/ Inner-Outer ward basis will give us additional data on whether projects are uniformly spread or done based on The developmental needs.
+
+## How many of each project actually gets funded?
+Here we will check the projects for which bills were presented. This data will be further segregated ward wise...
+
+## How many of funded projects are completed?
+We do not have any criteria for figuring out completed projects vs started but not completed.
+
+## What is the duration between project proposal and project completion?
+This is again a rough calculation we will be measuring data of Job-Code in Jobs table vs the last Bill submission date
+
+## How many contractors are affiliated to BBMP?
+Accurate answer is to uniquify the contractor ID in the IFMS bills data base. This is a very small data set. We will try to get an approximate by 
+* Uniquifying the entries in the RTI data base to get the upper bound removing all 1-3 character entries and non alpha characters and uniquifying to get the lower bound.
+
+## Are contractors specializing in specific department and work? Or do they take up projects across the spectrum?
+
+This will be measured by checking the Zone, P-Code information for each contractor and measuring the number of unique P-Codes for which they have submitted the bills.
+
+## What is the Earning per contractor?
+This is the sum of total payments made to each contractor.
+
+## What is the average delay in getting the payment for each contractor?
+This is date of Bill submission vs Date of Actual payment
