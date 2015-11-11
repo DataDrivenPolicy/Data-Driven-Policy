@@ -14,6 +14,7 @@ opts_knit$set(root.dir = normalizePath('../'))
 options(digits=4,scipen = 9)
 
 # Libraries
+library(scales)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -138,6 +139,10 @@ for (filename in list.files("RawData/tolldata/data/",full.names = T,pattern =
 ```
 
 ```{r TidyData}
+##############################################################
+########  Tidy up the Data
+##############################################################
+
 booth_tidy<-booth%>%
   separate(fee_dates,c("Effective.Date","Revision.Due.Date"),sep="/") %>%
 mutate(Effective.Date=dmy(Effective.Date),
@@ -146,6 +151,10 @@ mutate(Effective.Date=dmy(Effective.Date),
   separate(location,c("location","Stretch"),sep="Stretch :")%>%
   separate(Road.Length,c("Min.Road.Length","Max.Road.Length"),sep="to|/|&|[(]") %>%
   mutate(Min.Road.Length=extract_numeric(Min.Road.Length))
+aa<-regexpr("[(][^)]*[)] *$",booth_tidy$tollbooth,perl=T)
+booth_tidy<-mutate(booth_tidy,funding.Model=regmatches(booth_tidy$tollbooth,aa))
+
+  
 
 fees_tidy<-fees[complete.cases(fees$`Type of vehicle`),] %>%
   rename(Type.of.vehicle=`Type of vehicle`,
@@ -154,6 +163,7 @@ fees_tidy<-fees[complete.cases(fees$`Type of vehicle`),] %>%
          Monthly.Pass=`Monthly Pass`,
          Local.Commercial.Vehicle=`Commercial Vehicle Registered within the district of plaza `
          )%>%
+  filter(route==1)%>%
   mutate(Single.Journey=extract_numeric(Single.Journey),
          Return.Journey=extract_numeric(Return.Journey),
          Monthly.Pass=extract_numeric(Monthly.Pass),
@@ -168,7 +178,8 @@ cost_tidy<-cost%>%spread(V1,V2)%>%
 
 ##################################################
 cost_tidy<-cost_tidy%>%
-  mutate(`Capital Cost of Project (in Rs. Cr.)`=crore*extract_numeric(`Capital Cost of Project (in Rs. Cr.)`),
+  mutate(`Capital Cost of Project (in Rs. Cr.)`=extract_numeric(`Capital Cost of Project (in Rs. Cr.)`),
+         `Capital Cost of Project (in Rs. Cr.)`=ifelse(`Capital Cost of Project (in Rs. Cr.)`/crore>=1,`Capital Cost of Project (in Rs. Cr.)`,crore*`Capital Cost of Project (in Rs. Cr.)`) , # It looks like some entries are in rupees instead of crores. Fixing those.
          `Commercial Operation Date`=dmy(`Commercial Operation Date`),
          Cumulative.Date=dmy(Cumulative.Date),
          Fee.Notification.Date=dmy(Fee.Notification.Date),
@@ -186,13 +197,16 @@ cost_tidy<-cost_tidy%>%
            
   )%>%
   mutate(
-    Cumulative.Revenue=crore*extract_numeric(Cumulative.Revenue)
+    Cumulative.Revenue=extract_numeric(Cumulative.Revenue),
+    Cumulative.Revenue=ifelse(Cumulative.Revenue/crore>1,Cumulative.Revenue,
+                              ifelse(Cumulative.Revenue/lakh>1,Cumulative.Revenue*100,Cumulative.Revenue*crore))
   )
          
 
 
 joined<-left_join(fees_tidy,booth_tidy,by="tollbooth")
 joined<-left_join(joined,cost_tidy)
+write.table(joined,"TollData.data")
 cars<-filter(joined,grepl("Car",Type.of.vehicle))
 ```
 
@@ -208,47 +222,133 @@ earliest.capital=n$Capital.cost
 
 m<-top_n(cost_tidy,1,desc(Actual.Traffic))
 recovery_period<-cars%>%
-  select(tollbooth,Single.Journey,Actual.Traffic,Capital.cost)
+  select(tollbooth,Single.Journey,Actual.Traffic,Capital.cost,funding.Model)
 recovery_period<-recovery_period[complete.cases(recovery_period),]%>%
   mutate(recovery=Capital.cost/(365*Actual.Traffic*Single.Journey))
-ggplot(recovery_period,aes(recovery))+geom_histogram(binwidth=5)+coord_cartesian(xlim=c(0,100))
+ggplot(recovery_period,aes(recovery))+geom_histogram(binwidth=5)+coord_cartesian(xlim=c(0,100))+xlab("Cost recovery in years")+  scale_x_continuous(breaks=pretty_breaks(n=10)) +ylab("Number of booth")
+
 
 
 x<-select(cars,Single.Journey ,Actual.Traffic)
 x<-x[complete.cases(x),]
+cpkm<-left_join(cost_tidy,booth_tidy,by="tollbooth")%>% mutate(cost.per.km=Capital.cost/Min.Road.Length)
+cpkm<-cpkm[!is.infinite(cpkm$cost.per.km),]
+cpkm<-cpkm[!is.na(cpkm$cost.per.km),]
 ```
 
 # Introduction
 
-In India, on most of the highways we see toll booth's spaced at a distance of approximate an hours drive time or less. The data related to these toll booths
+## Data sources
 
-* `r nrow(booth_tidy)` Toll locations across India.
-* `r sum(cost_tidy$Capital.cost,na.rm=T)/(lakh * crore)` Lakh Crore was spent on the toll roads bridges etc.
-* `r round(earning2date/(crore * lakh))` lakh Crores was cumulatively earned from all toll booths since they were constructed.
-* `r sum(x$Actual.Traffic)` Vehicles use these toll booths daily.
-* `r 365*sum(x$Actual.Traffic*x$Single.Journey)/(lakh*crore)` Lakh Crore Is the total amount that should be earned this year based on Actual average daily traffic and min fees(for Car)
-* `r sum(cost_tidy$Cumulative.Revenue.Discounted)` Booth Have some revenue discounting scheme.
-* `r earliest.toll` is the Earliest toll booth which commenced operation in `r  earliest.operation` and is still collecting revenue. It has collected a revenue of `r earliest.revenue/(lakh*crore)` lakh Crores for a capital investment of  `r earliest.capital/crore` Crore
-* The least busiest toll booth is `r m$tollbooth` with `r m$Actual.Traffic` vehicles per day. costing `r m$Capital.cost`
+This is an analysis of the toll information available at http://www.nhtis.org/tolllist.htm
+
+The RawData, processed data and the scripts used to generate this report are available on github at github.com/jahagirdar/Data-Driven-Policy/tollBooth.Rmd
+
+The data from the website was downloaded on 3rd November 2015 and saved as HTML for each tollbooth. This report is based on the saved html files.
+
+## Issues with the data.
+The downloaded data has the following reliability issues.
+
+* The revenue column is in crores, Data for some of the booths runs in Crores of Crores, We assume that the data was not entered in Crores and fix for the same.  
+ * Similarly some of the revenue data is in Lakhs of crores and is assumed to be incorrect data entry and fixed for the same.
+* Some toll booths show abnormally high daily traffic running in tens of lakhs to multiple crores. We are not sure what is wrong with these booths and have left them as is.
+
+## Overview
+
+* In India, on most of the highways we see toll booth's spaced at a distance of approximate an hours drive time or less.
+* These toll roads are build under one of the following models.
+```{r results="asis"}
+x<-booth_tidy%>% group_by(funding.Model)%>%summarize(Number.Of.Booth=n())%>%arrange(desc(Number.Of.Booth))
+print( xtable(x , caption="Funding model of toll roads"),type="html")
+```
+```{r results="asis"}
+ggplot(cpkm,aes(cost.per.km))+geom_histogram()+facet_wrap(~funding.Model)+ylab("Number of Toll roads")
+print(xtable(
+joined%>%na.omit()%>%group_by(funding.Model)%>%summarise(Average.Cost.Crore=mean(Capital.cost/crore))
+,caption="Average cost"),type="html")
+```
+
+* Most of the public funded toll roads were constructed at a lower cost/km  
+
+* The earliest still operating tollbooth is at `r earliest.toll` which was built at a capital cost of  `r earliest.capital/crore` crores and started commercial operation in `r earliest.operation`
+* After that, toll building started taking off in the 2000's with the maximum number of toll booths commissioned during the UPA-2 government.
+* Today we have `r nrow(booth_tidy)` Toll locations across India. These toll booths were constructed at a cost of `r sum(cost_tidy$Capital.cost,na.rm=T)/(lakh * crore)` Lakh Crores. The cost of `r sum(is.na(cost_tidy$Capital.cost))` toll booths is not known.
+* The average cost per km of road is `r mean(cpkm$cost.per.km)/crore` Crores. min is `r min(cpkm$cost.per.km)/crore` max is `r max(cpkm$cost.per.km)/crore` median is `r median(cpkm$cost.per.km)/crore`
+* The total declared earnings since commercial operation from these toll booths is `r round(earning2date/(crore * lakh))` lakh Crores.
+* `r sum(x$Actual.Traffic)/lakh` lakh vehicles use these toll booths daily.
+* `r 365*sum(x$Actual.Traffic*x$Single.Journey)/(lakh*crore)` Lakh Crore Is the total amount that should be earned this year based on actual average daily traffic. i.e. On averge cost recovery for the toll road takes place within `r sum(is.na(cost_tidy$Capital.cost))/(365*sum(x$Actual.Traffic*x$Single.Journey))` years.
+`r #* At this rate the total investment in all toll roads should be recovered in r (sum(cost_tidy$Capital.cost,na.rm=T) -earning2date)/ (365*sum(x$Actual.Traffic*x$Single.Journey))  years.`
+* Some roads see very heavy traffic while some roads makes you wonder why were they built? e.g.
+
+# Low Daily traffic
+
+
+```{r results="asis"}
+print(xtable(top_n(cost_tidy,5,desc(Actual.Traffic))%>%mutate(Capital.cost.Crore=Capital.cost/crore,Cumulative.Revenue.Crore=Cumulative.Revenue/crore,Commercial.Operation.Date=as.character(Commercial.Operation.Date)) %>%select(tollbooth,Actual.Traffic,Design.Capacity,Capital.cost.Crore,Cumulative.Revenue.Crore,Commercial.Operation.Date)%>%arrange((Actual.Traffic)),caption="The 5 toll roads seeing the least traffic."),type="html")
+```
+
+It is not clear how a toll booth seeing less than 100 vehicles a day i.e. less than 36 thousand vehicles a year or approx a lakh vehicle since it commenced operation collected a revenue of 27 Crores or 2700 per vehicle per day per trip. 
+
+#High Daily Traffic
+
+On the other hand some of the toll booths seeing heavy traffic have already paid off the investment or are half way through.
+The number for average daily traffic look fishy. It is difficult to imaging a tollbooth seeing average daily traffic running in tens of lakhs or crores.
+
+Toll boths measuring traffic of over a lakh vehicle daily are:
+```{r results="asis"}
+x<-cost_tidy%>%
+     mutate(Capital.cost.Crore=Capital.cost/crore,Cumulative.Revenue.Crore=Cumulative.Revenue/crore,Commercial.Operation.Date=as.character(Commercial.Operation.Date))%>%
+    select(tollbooth,Actual.Traffic,Design.Capacity,Capital.cost.Crore,Cumulative.Revenue.Crore,Commercial.Operation.Date)%>%
+    filter(Actual.Traffic>lakh)%>%
+    arrange(desc(Actual.Traffic))
+  
+print(xtable(x ,caption="The  toll roads seeing the most traffic."),type="html")
+```
+
+
+
+
+# Investment recovery period.
+```{r results="asis"}
+   x<- cars%>%filter(Cumulative.Revenue>=Capital.cost)%>%mutate(Capital.Cost.Crore=Capital.cost/crore,Revenue=Cumulative.Revenue/crore, Commercial.Operation.Date=as.character(Commercial.Operation.Date))%>%
+select(tollbooth,Capital.Cost.Crore,Revenue,Commercial.Operation.Date)
+```
+
+In theory toll booths seeing heavy traffic should have repaid the capital cost within a few years of operation. Data indicates `r nrow(x)` toll roads have reached this milestone.
+```{r results="asis"} 
+
+print(
+  xtable(x  ,caption="Toll booths which have already paid back the investment"),type="html")
+```
+
+Based on the current average daily traffic, The cost recovery period for toll booths is as follows
+```{r results="asis"}
+print(xtable(recovery_period%>%mutate(Capital.cost=Capital.cost/crore)%>%rename(Capital.cost.in.Crores=Capital.cost)%>%arrange((recovery))%>%rename(recovery.in.years=recovery)),type="html")
+ggplot(cpkm,aes(cost.per.km,fill=funding.Model))+geom_histogram(position="dodge")+facet_wrap(~funding.Model)+ylab("Number of Toll roads")
+#+coord_cartesian(xlim=c(0,100))
+```
+On an average Public funded projects get completed at a lower cost compared to project under BOT( Build Operate Transfer)
+
+# Appendix
 
 ```{r plotGraphs}
-ggplot(cost_tidy,aes(Capital.cost))+geom_histogram()+xlab("Capital cost of project")+ylab("Number of Booths")
+ggplot(cost_tidy,aes(Capital.cost/crore))+geom_histogram()+xlab("Capital cost of project in crore")+ylab("Number of Booths")
 ggplot(cost_tidy,aes(Commercial.Operation.Date))+geom_histogram()+xlab("Start of Commercial Operation") +ylab("Number of Booths")
 ggplot(cost_tidy,aes(Actual.Traffic))+geom_histogram(binwidth=5000)+coord_cartesian(xlim=c(0,100000))+ylab("Number of Booths") +xlab("Average Daily Traffic")
 ```
 
 ```{r}
-cpkm<-left_join(cost_tidy,booth_tidy,by="tollbooth")%>% mutate(cost.per.km=Capital.cost/Min.Road.Length)
-ggplot(cpkm,aes(cost.per.km))+geom_histogram()
+ggplot(cpkm,aes(cost.per.km/crore))+geom_histogram() +ylab("Number of Booths") +xlab("Cost per km (Crores") +  scale_x_continuous(breaks=pretty_breaks(n=30)) +ylab("Number of booth")
+lmfit<-coef(lm(Commercial.Operation.Date ~ cost.per.km,cpkm))
+ggplot(cpkm,aes(x=Commercial.Operation.Date,y=cost.per.km))+geom_point()+geom_smooth()
+#abline(intercept=lmfit[[1]],slope=lmfit[[2]])
 ```
-we have an outlier where the cost/km is over 250 Crores this corresponds to 
+
+# Note
+
+* `r sum(cost_tidy$Cumulative.Revenue.Discounted)` Booth Have some revenue discounting scheme.
+* we have an outlier where the cost/km is over 250 Crores this corresponds to 
+
 ```{r results="asis"}
-cpkm<-cpkm[!is.infinite(cpkm$cost.per.km),]
 print(xtable(select(top_n(cpkm,1,cost.per.km),tollbooth,cost.per.km,Min.Road.Length,location,Actual.Traffic,Capital.cost)),type="html")
-```
-
-At the current Average traffic and assuming all vehicles are cars(lowest fees) Toll booths should recover their investment within
-
-```{r results="asis"}
-print(xtable(recovery_period%>%mutate(Capital.cost=Capital.cost/crore)%>%rename(Capital.cost.in.Crores=Capital.cost)%>%arrange((recovery))),type="html")
 ```
