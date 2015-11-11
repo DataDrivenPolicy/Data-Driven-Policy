@@ -1,0 +1,15 @@
+.Rproj.user
+.Rhistory
+.RData
+.httr-oauth
+.RDataTmp
+RawData
+csvfiles
+*.csv
+*.Rproj
+part_age_gender
+mug.jpeg
+*.html
+*.pdf
+*.md
+*~
