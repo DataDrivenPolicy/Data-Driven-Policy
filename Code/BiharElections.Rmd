@@ -25,10 +25,10 @@ library(XML)
 library(xml2)
 library(lubridate)
 library(xtable)
-bihar<-data.frame()
 ```
 ```{r}
-for(ac in 1:243) { #
+bihar<-data.frame()
+ for(ac in 1:243) { #
 url<-paste0("http://eciresults.nic.in/ConstituencywiseS04",ac,".htm",collapse = "")
 if(!dir.exists("RawData/Bihar/")){
   dir.create("RawData/Bihar/")
@@ -38,8 +38,7 @@ if(!dir.exists("RawData/Bihar/")){
  download.file(url,localfile)
    
  }
-}
-for(ac in 1:243) { #
+ print(localfile)
  x<-read_html(localfile)
  constituency<-xml_text(xml_find_all(x,'//*[@id="div1"]/table[1]/tr[1]'))
  y<-htmlParse(localfile)
@@ -52,5 +51,5 @@ print (getwd())
 ```
 ```{r}
 
-bihar_tidy<-bihar%>%extract(constituency,c("constituency","Reservation"),regex='([^(]*)([(].*[)])?')%>%mutate(Reservation=gsub('[()]','',Reservation),constituency=gsub("Bihar -",'',constituency))
+bihar_tidy<-bihar%>%extract(constituency,c("constituency","Reservation"),regex='([^(]*)([(].*[)])?')%>%mutate(Reservation=gsub('[()]','',Reservation),constituency=gsub("Bihar -",'',constituency),Votes=extract_numeric(Votes))
 ```

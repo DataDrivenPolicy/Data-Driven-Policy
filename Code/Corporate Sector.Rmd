@@ -1,0 +1,121 @@
+---
+title: "Corporate Analysis"
+author: "Vijayvithal"
+date: "2 December 2015"
+output: html_document
+---
+
+```{r setup ,include=FALSE}
+
+require(knitr)
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE)
+opts_knit$set(root.dir = normalizePath('../'))
+
+# Libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(lubridate)
+library(xtable)
+library(scales)
+library(readxl)
+library(XML)
+
+# Indian numeric quantities
+lakh<-100000
+crore<-10000000
+
+#Edit this template at C:\Users\vsjahagi\Documents\RStudio\resources\templates
+```
+
+```{r}
+files<-list.files("RawData/mca.gov.in/",full.names = T,pattern="*.xlsx")
+
+library(RCurl)
+curl = getCurlHandle()
+agent="Mozilla/5.0" #or whatever
+
+curlSetOpt(cookiejar="cookies.txt",  useragent = agent, proxy="proxy-iind.intel.com",proxyport=911,followlocation = TRUE, curl=curl)
+#curlSetOpt(cookiejar="cookies.txt",  useragent = agent, followlocation = TRUE, curl=curl)
+html=getURL( "http://www.mca.gov.in/DCAPortalWeb/dca/MyMCALogin.do?method=setDefaultProperty&mode=31",curl=curl)
+
+getdin<-function(din){
+  print (paste0("Din=",din))
+  url=paste0("http://www.mca.gov.in/DCAPortalWeb/dca/SignatoryDetailsAction.do?method=viewSignatoryComp&cin=",din)
+  html1<-getURL(url,curl=curl)
+  if(grepl("table",html1)){
+    if(grepl("Your Session has expired.",html1))
+    {
+      html=getURL( "http://www.mca.gov.in/DCAPortalWeb/dca/MyMCALogin.do?method=setDefaultProperty&mode=31",curl=curl)
+      html1<-getURL(url,curl=curl)
+      
+    }
+    tbl<-readHTMLTable(html1,as.data.frame=T,which=1,header=T,skip.rows = 1)
+    if(!is.null(tbl) ){
+      tbl%>%mutate(cin=din)
+    }
+  } else {
+    print(paste0("Unable to find table for cin=",din))
+    html=getURL( "http://www.mca.gov.in/DCAPortalWeb/dca/MyMCALogin.do?method=setDefaultProperty&mode=31",curl=curl)
+  }
+}
+for (file in files){
+kar<-read_excel(file)
+kar$` PAIDUP_CAPITAL `<-extract_numeric(kar$` PAIDUP_CAPITAL `)
+kar$REGISTERED_STATE<-as.factor(kar$REGISTERED_STATE)
+kar$COMPANY_STATUS<-as.factor(kar$COMPANY_STATUS)
+kar$COMPANY_CLASS<-as.factor(kar$COMPANY_CLASS)
+kar$COMPANY_CATEGORY<-as.factor(kar$COMPANY_CATEGORY)
+kar$REGISTRAR_OF_COMPANIES<-as.factor(kar$REGISTRAR_OF_COMPANIES)
+kar$SUB_CATEGORY<-as.factor(kar$SUB_CATEGORY)
+kar$PRINCIPAL_BUSINESS_ACTIVITY<-as.factor(kar$PRINCIPAL_BUSINESS_ACTIVITY)
+
+html=getURL( "http://www.mca.gov.in/DCAPortalWeb/dca/MyMCALogin.do?method=setDefaultProperty&mode=31",curl=curl)
+Sys.sleep(6)
+state<-kar$REGISTERED_STATE[1]
+print(paste0("State is ",state))
+state<-gsub(" ","",state)
+writefile<-paste0(state,"-directors.csv")
+if(!file.exists(writefile)){
+  cin_list=kar$CORPORATE_IDENTIFICATION_NUMBER;
+  iterations=ceiling(length(cin_list)/1000)
+  for(iter in 1:iterations){
+    writefileiter<-paste0(state,iter,"-directors.csv")
+    if(!file.exists(writefileiter)){
+      
+      start_iter<-1+(iter-1)*1000
+      end_iter<-iter*1000
+      datam<-na.omit(cin_list[start_iter:end_iter])
+  #   directors<-lapply(datam,getdin)
+      print(paste0("Finished subset of the directors for ",state,"iteration ",iter, " of ",iterations))
+   #   dframe<-do.call(rbind,directors)
+    #  write.csv(dframe,writefileiter)
+    }
+  }
+    mframe=data.frame()
+  for(iter in 1:iterations){
+  #//TODO merge individual tables
+        writefileiter<-paste0(state,iter,"-directors.csv")
+        x<-read.csv(writefileiter)
+    mframe<-rbind(mframe,x)
+  }
+  write.csv(mframe,writefile)
+
+}
+}
+```
+# Introduction
+Ministry of corporate affairs puts out certain data related to corporate houses on its website, Is it possible to do a bulk analysis of the data to narrow down companies of interest?
+
+* Can we identify "Gadkari Companies"? i.e. Potential Shell Companies whose directors stay far away (in a different state)
+* Can we track the industralisation of India?
+* Can we identify the rise and fall of different sectors?
+
+## Data Sources
+The data used for this analysis were downloaded from http://www.mca.gov.in/MinistryV2/masterdatareport.html on 2nd Dec 2015
+
+## Data quality overview
+# Overview of Analysis
+#Results
+#Appendix

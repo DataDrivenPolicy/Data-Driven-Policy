@@ -207,7 +207,17 @@ cost_tidy<-cost_tidy%>%
 joined<-left_join(fees_tidy,booth_tidy,by="tollbooth")
 joined<-left_join(joined,cost_tidy)
 write.table(joined,"TollData.data")
+```
+```{r DataInference}
+#We take this joined Data and add some more datapoints to it
+joined<-joined%>%
+  mutate(recovery=Capital.cost/(365*Actual.Traffic*Single.Journey))%>%
+  mutate(cost.per.km=Capital.cost/Min.Road.Length)%>%
+  filter(route==1) # In case of multiple routes at a toll plaza we will take only one route in consideration.
 cars<-filter(joined,grepl("Car",Type.of.vehicle))
+cpkm<-cars
+cpkm<-cpkm[!is.infinite(cpkm$cost.per.km),]
+cpkm<-cpkm[!is.na(cpkm$cost.per.km),]
 ```
 
 ```{r SummaryReport}
@@ -222,18 +232,12 @@ earliest.capital=n$Capital.cost
 
 m<-top_n(cost_tidy,1,desc(Actual.Traffic))
 recovery_period<-cars%>%
-  select(tollbooth,Single.Journey,Actual.Traffic,Capital.cost,funding.Model)
+  select(tollbooth,Single.Journey,Actual.Traffic,Capital.cost,funding.Model,Commercial.Operation.Date)
 recovery_period<-recovery_period[complete.cases(recovery_period),]%>%
-  mutate(recovery=Capital.cost/(365*Actual.Traffic*Single.Journey))
-ggplot(recovery_period,aes(recovery))+geom_histogram(binwidth=5)+coord_cartesian(xlim=c(0,100))+xlab("Cost recovery in years")+  scale_x_continuous(breaks=pretty_breaks(n=10)) +ylab("Number of booth")
+  mutate(recovery=Capital.cost/(365*Actual.Traffic*Single.Journey),Commercial.Operation.Date=as.character(Commercial.Operation.Date))
 
 
 
-x<-select(cars,Single.Journey ,Actual.Traffic)
-x<-x[complete.cases(x),]
-cpkm<-left_join(cost_tidy,booth_tidy,by="tollbooth")%>% mutate(cost.per.km=Capital.cost/Min.Road.Length)
-cpkm<-cpkm[!is.infinite(cpkm$cost.per.km),]
-cpkm<-cpkm[!is.na(cpkm$cost.per.km),]
 ```
 
 # Introduction
@@ -245,6 +249,8 @@ This is an analysis of the toll information available at http://www.nhtis.org/to
 The RawData, processed data and the scripts used to generate this report are available on github at github.com/jahagirdar/Data-Driven-Policy/tollBooth.Rmd
 
 The data from the website was downloaded on 3rd November 2015 and saved as HTML for each tollbooth. This report is based on the saved html files.
+
+This data can be accessed on github as RawData/toll.tgz
 
 ## Issues with the data.
 The downloaded data has the following reliability issues.
@@ -258,26 +264,50 @@ The downloaded data has the following reliability issues.
 * In India, on most of the highways we see toll booth's spaced at a distance of approximate an hours drive time or less.
 * These toll roads are build under one of the following models.
 ```{r results="asis"}
-x<-booth_tidy%>% group_by(funding.Model)%>%summarize(Number.Of.Booth=n())%>%arrange(desc(Number.Of.Booth))
-print( xtable(x , caption="Funding model of toll roads"),type="html")
+x<-cpkm%>% group_by(funding.Model)%>%
+summarize(Number.Of.Booth=n(),
+'Median Cost/km in Crores'=median(na.omit(cost.per.km))/crore, 'Total Cost in Crores'=sum(na.omit(Capital.cost))/crore,'Total Length in km'=sum(na.omit(Min.Road.Length))
+) %>%
+arrange(desc(Number.Of.Booth))
+print( xtable(x , caption="Funding model of toll roads(Note: toll booths with incomplete information are ignored in this table)"),type="html")
 ```
 ```{r results="asis"}
 ggplot(cpkm,aes(cost.per.km))+geom_histogram()+facet_wrap(~funding.Model)+ylab("Number of Toll roads")
-print(xtable(
-joined%>%na.omit()%>%group_by(funding.Model)%>%summarise(Average.Cost.Crore=mean(Capital.cost/crore))
-,caption="Average cost"),type="html")
+ggplot(joined,aes(funding.Model,cost.per.km))+geom_boxplot()
 ```
 
+* BOT:Build Operate Transfer
+* OMT: (Operate Maintain Transfer(?))
+
 * Most of the public funded toll roads were constructed at a lower cost/km  
+* Median cpkm of public funded roads is `r median(na.omit(cpkm%>%filter(funding.Model=="( Public Funded ) ")%>%select(cost.per.km))$cost.per.km)/crore` Crores.
+* Median cpkm of roads built under BOT is `r median(na.omit(cpkm%>%filter(funding.Model=="( BOT ) ")%>%select(cost.per.km))$cost.per.km)/crore` Crores.
+
+i.e. a Road built under BOT model is twice as costly as a road built under Public funding model.
+
 
 * The earliest still operating tollbooth is at `r earliest.toll` which was built at a capital cost of  `r earliest.capital/crore` crores and started commercial operation in `r earliest.operation`
-* After that, toll building started taking off in the 2000's with the maximum number of toll booths commissioned during the UPA-2 government.
+* After that, toll building started taking off in the 2000's with the maximum number of toll booths commissioned during the UPA-2 government. Most of the toll roads under BOT and Public funding models were built during this period.
+
 * Today we have `r nrow(booth_tidy)` Toll locations across India. These toll booths were constructed at a cost of `r sum(cost_tidy$Capital.cost,na.rm=T)/(lakh * crore)` Lakh Crores. The cost of `r sum(is.na(cost_tidy$Capital.cost))` toll booths is not known.
-* The average cost per km of road is `r mean(cpkm$cost.per.km)/crore` Crores. min is `r min(cpkm$cost.per.km)/crore` max is `r max(cpkm$cost.per.km)/crore` median is `r median(cpkm$cost.per.km)/crore`
+
+```{r}
+ggplot(cars,aes(Commercial.Operation.Date,fill=funding.Model))+geom_histogram()+xlab("Start of Commercial Operation") +ylab("Number of Booths")+facet_wrap(~funding.Model)
+```
+
 * The total declared earnings since commercial operation from these toll booths is `r round(earning2date/(crore * lakh))` lakh Crores.
-* `r sum(x$Actual.Traffic)/lakh` lakh vehicles use these toll booths daily.
-* `r 365*sum(x$Actual.Traffic*x$Single.Journey)/(lakh*crore)` Lakh Crore Is the total amount that should be earned this year based on actual average daily traffic. i.e. On averge cost recovery for the toll road takes place within `r sum(is.na(cost_tidy$Capital.cost))/(365*sum(x$Actual.Traffic*x$Single.Journey))` years.
-`r #* At this rate the total investment in all toll roads should be recovered in r (sum(cost_tidy$Capital.cost,na.rm=T) -earning2date)/ (365*sum(x$Actual.Traffic*x$Single.Journey))  years.`
+* `r sum(na.omit(cars$Actual.Traffic))/lakh` lakh vehicles use these toll booths daily.
+* `r 365*sum(na.omit(cars$Actual.Traffic*cars$Single.Journey))/(lakh*crore)` Lakh Crore Is the total amount that should be earned this year based on actual average daily traffic. i.e. On averge cost recovery for the toll road takes place within `r sum(na.omit(cost_tidy$Capital.cost))/(365*sum(na.omit(cars$Actual.Traffic* cars$Single.Journey)))` years.
+* At this rate the total investment in all toll roads should be recovered in `r (sum(na.omit(cost_tidy$Capital.cost),na.rm=T) -earning2date)/ (365*sum(na.omit(cars$Actual.Traffic*cars$Single.Journey)))`  years.
+
+* If we drop the top 10% of the booths seeing heavy traffic and re calculate the above numbers we get the following:
+```{r}
+bot_90<-cars%>%filter(Actual.Traffic<=quantile(cars$Actual.Traffic,na.rm=T,probs=1:10/10)[9])
+```
+* `r sum(na.omit(bot_90$Actual.Traffic))/lakh` lakh vehicles use these toll booths daily.
+* `r 365*sum(na.omit(bot_90$Actual.Traffic*bot_90$Single.Journey))/(lakh*crore)` Lakh Crore Is the total amount that should be earned this year based on actual average daily traffic. i.e. On averge cost recovery for the toll road takes place within `r sum(na.omit(bot_90$Capital.cost))/(365*sum(na.omit(bot_90$Actual.Traffic* bot_90$Single.Journey)))` years.
+* At this rate the total investment in all toll roads should be recovered in `r (sum(na.omit(bot_90$Capital.cost),na.rm=T) -earning2date)/ (365*sum(na.omit(bot_90$Actual.Traffic*bot_90$Single.Journey)))`  years.
+
 * Some roads see very heavy traffic while some roads makes you wonder why were they built? e.g.
 
 # Low Daily traffic
@@ -325,15 +355,15 @@ Based on the current average daily traffic, The cost recovery period for toll bo
 ```{r results="asis"}
 print(xtable(recovery_period%>%mutate(Capital.cost=Capital.cost/crore)%>%rename(Capital.cost.in.Crores=Capital.cost)%>%arrange((recovery))%>%rename(recovery.in.years=recovery)),type="html")
 ggplot(cpkm,aes(cost.per.km,fill=funding.Model))+geom_histogram(position="dodge")+facet_wrap(~funding.Model)+ylab("Number of Toll roads")
+ggplot(recovery_period,aes(recovery))+geom_histogram(binwidth=5)+coord_cartesian(xlim=c(0,100))+xlab("Cost recovery in years")+  scale_x_continuous(breaks=pretty_breaks(n=10)) +ylab("Number of booth")
+
 #+coord_cartesian(xlim=c(0,100))
 ```
-On an average Public funded projects get completed at a lower cost compared to project under BOT( Build Operate Transfer)
 
 # Appendix
 
 ```{r plotGraphs}
 ggplot(cost_tidy,aes(Capital.cost/crore))+geom_histogram()+xlab("Capital cost of project in crore")+ylab("Number of Booths")
-ggplot(cost_tidy,aes(Commercial.Operation.Date))+geom_histogram()+xlab("Start of Commercial Operation") +ylab("Number of Booths")
 ggplot(cost_tidy,aes(Actual.Traffic))+geom_histogram(binwidth=5000)+coord_cartesian(xlim=c(0,100000))+ylab("Number of Booths") +xlab("Average Daily Traffic")
 ```
 
@@ -346,7 +376,7 @@ ggplot(cpkm,aes(x=Commercial.Operation.Date,y=cost.per.km))+geom_point()+geom_sm
 
 # Note
 
-* `r sum(cost_tidy$Cumulative.Revenue.Discounted)` Booth Have some revenue discounting scheme.
+* `r sum(cost_tidy$Cumulative.Revenue.Discounted)` Booth Have some revenue discounting scheme. We are not sure what these schemes are.
 * we have an outlier where the cost/km is over 250 Crores this corresponds to 
 
 ```{r results="asis"}

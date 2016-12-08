@@ -1,0 +1,25 @@
+---
+title: "rainfall"
+author: "Vijayvithal"
+date: "25 September 2015"
+output: html_document
+---
+
+```{r}
+require(knitr)
+opts_knit$set(root.dir = normalizePath('../'))
+library(ggplot2)
+rainfall<-read.csv("RawData/data.gov.in/rainfall-1951-2012.csv")
+```
+Plotting the rainfall pattern for karnataka does not show us any signs of "climate change". The rainfall follows a periodic pattern of high and low. Water conservation and consumption pattern modelled on historic low's should help in designing sustainable agricultural practises.
+```{r}
+kar<-rainfall[grep("KARNATAKA",rainfall$Sub.Division),]
+ggplot(kar,aes(x=YEAR,y=ANNUAL,fill=Sub.Division)) + geom_bar(stat="identity",position="dodge")
+```
+Studying the monthly rainfall data also did not throw up any surprises.
+```{r}
+library(dplyr)
+library(tidyr)
+nikar<-rain[rain$Sub.Division=="NORTH INTERIOR KARNATAKA",]
+nikar %>%select(-(ANNUAL:Oct.Dec))%>% gather(Month,Rainfall,JAN:DEC) %>%
+  ggplot(aes(x=YEAR,y=Rainfall,fill=Month)) +geom_area()
